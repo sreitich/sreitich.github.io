@@ -1,0 +1,50 @@
+# Welcome to Jekyll!
+#
+# This config file is meant for settings that affect your whole blog, values
+# which you are expected to set up once and rarely edit after that. If you find
+# yourself editing this file very often, consider using Jekyll's data files
+# feature for the data you need to update frequently.
+
+# Site settings
+locale: "en-US"
+title: Sam Reitich
+description: "Game development programming blog for my personal projects."
+domain: sreitich.github.io
+url: https://sreitich.github.io
+teaser: "/assets/images/site-teaser.png"
+
+# Build settings
+theme: minima
+plugins:
+  - jekyll-feed
+
+# Site Author
+author:
+  name: "Sam Reitich"
+  avatar: "/assets/images/Meta.jpg"
+  bio: "Game Programmer"
+  location: "Los Angeles, CA"
+  email:
+  links:
+    - label: "Personal Website"
+      icon: "fab fa-fw fa-user"
+      url: "https://samreitich.com"
+    - label: "LinkedIn"
+      icon: "fab fa-fw fa-linkedin"
+      url: "https://www.linkedin.com/in/samreitich/"
+    - label: "GitHub"
+      icon: "fab fa-fw fa-github"
+      url: "https://github.com/sreitich"
+
+# Site Footer
+footer:
+  links:
+    - label: "Personal Website"
+      icon: "fab fa-fw fa-user"
+      url: "https://samreitich.com"
+    - label: "LinkedIn"
+      icon: "fab fa-fw fa-linkedin"
+      url: "https://www.linkedin.com/in/samreitich/"
+    - label: "GitHub"
+      icon: "fab fa-fw fa-github"
+      url: "https://github.com/sreitich"
