@@ -120,7 +120,7 @@ author:
   email            :
   links:
     - label: "Personal Website"
-      icon: "fab fa-fw fa-user"
+      icon: "fa fa-fw fa-user"
       url: "https://samreitich.com"
     - label: "LinkedIn"
       icon: "fab fa-fw fa-linkedin"
@@ -133,7 +133,7 @@ author:
 footer:
   links:
     - label: "Personal Website"
-      icon: "fab fa-fw fa-user"
+      icon: "fa fa-fw fa-user"
       url: "https://samreitich.com"
     - label: "LinkedIn"
       icon: "fab fa-fw fa-linkedin"
@@ -301,7 +301,7 @@ defaults:
     values:
       layout: single
       author_profile: true
-      read_time: true
-      comments: # true
+      read_time:
+      comments:
       share: true
-      related: true
+      related:
