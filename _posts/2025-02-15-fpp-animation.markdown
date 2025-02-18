@@ -1,45 +1,46 @@
 ---
 layout: single
-title: "Understanding replication atomicity in Unreal Engine"
-excerpt: In this post you'll learn the principles about atomic replication with a simple example, a Struct.
+title: "Procedural First-Person Animation System"
+excerpt: A breakdown of the first-person animation framework used in Cloud Crashers, and guide to building a similar system.
 header:
   teaser: /assets/images/per-post/atomicity/thumb.jpg
 author: Meta
 ---
 
-In this article you'll learn the concept of replication atomicity and its importance when dealing with networked code.
+A breakdown of the first-person animation framework used in _Cloud Crashers_, and guide to building a similar system.
 
 # Introduction
 
-[Atomicity](https://www.donnywals.com/what-does-atomic-mean-in-programming/) is a well-known concept in concurrent systems, which guarantees the state of a property when reading or writing, since reads and writes to the property can only happen sequentially.
+**TODO: Teaser**
 
-In our case, atomicity ensures that we can guarantee the client state of a property when reading it after a network update. In Unreal Engine we can use OnReps to know [when a property has replicated to our client](https://vorixo.github.io/devtricks/stateful-events-multiplayer/), therefore we can guarantee that its client state is equivalent to the one on the server, or... can we?
+_Cloud Crashers_ is a hero-based fighting game. Each playable character has a unique weapon, set of abilities, and overall aesthetic that feels distinct. 
 
-# Default Struct replication
+When designing the game's first-person animation system, we needed a robust framework that could streamline building large numbers of complex animation sets. But we also wanted a way to make each character feel unique, with their own sense of personality.
 
-If you are using Iris' replication system in Unreal Engine, structs became atomic! However if you are on Unreal Engine 5.3 or earlier versions of the engine (including UE4) this will still apply.
+As I was researching solutions for animation systems, I came across this brilliant GDC talk by Blizzard Entertainment's Matt Boehm:
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/7t0hLZd_8Z4?si=M6_tnPrCOSfHf0jU&amp;start=1192" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+<br>
+In this presentation, Matt breaks down how _Overwatch_ uses animation layers, additives, and spring models—among other tricks—to convey each hero's unique personality through procedural first-person animations.
+
+Even though it isn't a technical talk, Matt's high-level explanation of _Overwatch's_ animation framework provided great insights and inspiration for building a similar system for _Cloud Crashers_ in Unreal Engine.
+
+On release, _Overwatch_ garnered critical acclaim for how it expressed character through first-person animations. [Check out this fantastic video by New Frame Plus that breaks down the animations themselves.](https://www.youtube.com/watch?v=7Dga-UqdBR8)
 {: .notice--info}
 
-Structs are one of the types that do not ensure replication atomicity, since their default serialization (at the date of writing) only replicates the properties that changed, we call this **delta serialization**. This type of serialization reduces the network bandwith when replicating structs, as it serializes a network delta from a base state, as we can see below.
+In this article, I'll show how to create . By the end, we'll have an extremely powerful animation blueprint which can be used to create robust animation sets like this:
+
+**TODO: Final result**
+
+If you want to skip over the tutorial and just steal the code (you're more than welcome to!), check out the [CharacterAnimInstanceBase](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/CharacterAnimInstanceBase.h) and [FirstPersonCharacterAnimInstance](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/FirstPersonCharacterAnimInstance.h) classes on _Cloud Crashers'_ public source code.
+<br>
+<br>
+As you can see, _Cloud Crashers_ actually uses two animation instance classes: a base class and a first-person subclass. This is because _Cloud Crashers_ also supports third-person, and the third-person class re-uses the code in the base animation instance class. For the sake of simplicity, in this tutorial, I've rewritten the base class and first-person class into a single class.
+{: .notice--info}
+
+
 
 ![Default delta serialization]({{ '/' | absolute_url }}/assets/images/per-post/atomicity/deltaserialization.jpg){: .align-center}
-
-However, this method of serializing structs can't ensure atomicity if we introduce a real world very common variable, [packet loss](https://en.wikipedia.org/wiki/Packet_loss). In the following figure, the replication of `Property A` did not reach the client due to packet loss, then `Property B` replicated, leaving the relevant client struct in a state that never existed on the server.
-
-![Default delta serialization packet loss issue]({{ '/' | absolute_url }}/assets/images/per-post/atomicity/deltaserializationpacketloss.jpg){: .align-center}
-
-In Unreal Engine, it is possible to simulate  packet loss in PIE by enabling and modifying the [network emulation settings](https://docs.unrealengine.com/5.0/en-US/using-network-emulation-in-unreal-engine/).
-{: .notice--info}
-
-# Atomic Struct replication
-
-There's a way to ensure atomicity when we replicate structs, but it comes with a cost. If we have a requirement such that we **need** to guarantee consistency between client and server, we can opt-out from the default delta serialization and implement our own struct net serializer. This ensures that every time the struct replicates, we send the whole struct to the relevant clients to correct possible hazardous values. The following figure displays the same packet loss scenario we saw before, but now using a custom net serializer:
-
-![Custom net serialization packet loss issue]({{ '/' | absolute_url }}/assets/images/per-post/atomicity/netserializationpacketloss.jpg){: .align-center}
-
-The main cost of this operation is that we are sending the whole struct rather than the replication delta, therefore our bandwidth can get affected and we might need to apply [compression techniques](https://en.wikipedia.org/wiki/Data_compression) in our custom serialization method to mitigate the bandwidth overhead.
-
-## Hands on
 
 To implement a custom atomic net serializer for our replicated struct we need to do the following:
 
