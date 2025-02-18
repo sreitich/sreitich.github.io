@@ -5,14 +5,6 @@ excerpt: In this post you'll learn the principles about atomic replication with 
 header:
   teaser: /assets/images/per-post/atomicity/thumb.jpg
 author: Meta
-category: Videogames Development
-tags:
-  - Multiplayer
-  - UE5
-  - UE4
-  - Atomic
-  - NetSerialize
-  - Struct replication
 ---
 
 In this article you'll learn the concept of replication atomicity and its importance when dealing with networked code.
