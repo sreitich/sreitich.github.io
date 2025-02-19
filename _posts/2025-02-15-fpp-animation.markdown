@@ -192,9 +192,50 @@ Now, we have a base locomotive pose based on our directional movement speed:
 
 ## Additives
 
-Now things get more interesting. To add that extra level of personality to our animations, we're going to use additive poses to offset the base pose. We want to apply four different additives:
+Now things get more interesting. To add that extra level of personality to our animations, we're going to use additive poses to offset the base pose. We want to apply three different additives:
 
 - **Movement Sway**: Make the character lean in the direction they're moving or lag behind.
 - **Aim Sway**: Make the character's weapon lead the player's aim or lag behind when they turn.
 - **Falling Offset**: Blend to a `Jumping` or `Landing` pose based on the character's vertical velocity. This results in a procedural "Jump" animation that is more flexible and, more importantly, looks much nicer than one using a state machine (i.e. `Grounded` -> `Jumping` -> `Apex` -> `Falling` -> `Landing` -> `Grounded`).
-- **Pitch Offset**: Adjust the character's pose based on whether they're aiming up or down.
+
+Just so it's clear what we're trying to achieve, here's an example of what these poses may look like. This is the set of additive poses for the Knight character:
+
+**TODO: Idle Pose, Move Forward/Backward/Right/Left gif, Aim Right/Left/Up/Down gif, Jump/Fall gif**
+
+If you watched the GDC talk linked at the beginning of this page, this is what Matt referred to as the "aim suite."
+{: .notice--info}
+
+Applying these sways and offsets as additive animations allows us to apply them on top of whatever the character animation is currently playing, similar to an [aim offset](https://dev.epicgames.com/documentation/en-us/unreal-engine/aim-offset-in-unreal-engine). Whether we're idling, walking, reloading, or doing anything else, our sways and offsets will still be applied.
+
+For a more comprehensive explanation of how additive animations actually work, check out Unreal Engine's documentation on layered animations.
+{: .notice--info}
+
+### Applying Additives
+
+To apply these additives, we'll take our base pose and layer them on top through a series of `Apply Additive` nodes.
+
+Since we want to apply _different_ additives depending on the direction of the driving variable (e.g. `Fall Up` with a positive velocity vs. `Fall Down` with a negative velocity), we can use more blend spaces to determine which additives to play.
+
+This time, I'm actually going to create the blend spaces _inside_ the animation blueprint. This way, we don't need to create a blend space for every additive set, for every character; we can just change the additive animation assets in each character's animation blueprint.
+
+**TODO: Anim BP without params**
+
+Each blend space axis will scale from -1.0 to 1.0. Inside, each one is simply evaluating a bound animation sequence at the end of each axis. Since we're treating our additive animations as poses, we can skip the overhead of actually playing them, and instead just evaluate the pose at their first (and only) frame.
+
+Here are the settings _Cloud Crashers_ uses for our additive animations. Notice how, like an aim offset, they're simply single-frame animation sequences.
+**TODO: additive animation**
+{: .notice--info}
+
+### Calculating Additives
+
+Here's where things get tricky: our blend spaces need parameters to determine how to apply each additive. Let's consider what values we want to bind to each additive type:
+
+- **Movement Sway**: Horizontal velocity (how fast we're moving forwards/backwards and right/left)
+- **Aim Sway**: Rotational velocity (how fast we're turning up/down and right/left)
+- **Falling Offset**: Vertical velocity (how fast we're jumping up/falling down)
+
+Logically, if we normalize these values and bind them to our blend spaces, like we did with our locomotion, we should get what we're looking for. So let's see what happens when we try this:
+
+**TODO: linear mode, no BS smoothing**
+
+Well, that looks... odd. This is because we don't have any smoothing in our blend space. Characters in _Cloud Crashers_ have an acceleration speed of , so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to stationary very quickly.
