@@ -112,7 +112,7 @@ protected:
 	FVector LocalVelocity2DNormalized;
 {% endhighlight %}
 
-We want to update these variables (and most of the variables we'll use) every frame. To do this with multithreading, we implement the `NativeThreadSafeUpdateAnimation`:
+We want to update these variables (and most of the variables we'll use) every frame. To do this with multithreading, we implement the `NativeThreadSafeUpdateAnimation` function:
 {% highlight c++ %}
 public:
 
@@ -181,7 +181,7 @@ void UFirstPersonCharacterAnimInstance::UpdateVelocityData()
 }
 {% endhighlight %}
 
-Back in our animation blueprint, we can bind our local, normalized velocity to our blend space player (I've given the blend space asset a default value here, so we can see a preview):
+Back in our animation blueprint, we can bind our local, normalized velocity to our blend space player (I've given the blend space asset a default value here so we can see a preview):
 
 ![Blend space player final]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-locomotion-bs-02.png){: .align-center}
 
