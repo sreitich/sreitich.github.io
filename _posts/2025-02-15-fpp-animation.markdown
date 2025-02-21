@@ -187,8 +187,10 @@ Back in our animation blueprint, we can bind our local, normalized velocity to o
 
 Now, we have a base locomotive pose based on our directional movement speed:
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/_DeKiJuUris?si=LAouhGJdwWhosxQ8?autoplay=1&loop=1&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1" frameborder="0" allow="autoplay" allowfullscreen></iframe>
-<br>
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/fpp-anim-locomotion-bs-final-vid.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 ## Additives
 
@@ -200,7 +202,10 @@ Now things get more interesting. To add that extra level of personality to our a
 
 Just so it's clear what we're trying to achieve, here's an example of what these poses may look like. This is the set of additive poses for the Knight character:
 
-**TODO: Idle Pose, Move Forward/Backward/Right/Left gif, Aim Right/Left/Up/Down gif, Jump/Fall gif**
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/fpp-anim-additive-poses-vid.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 If you watched the GDC talk linked at the beginning of this page, this is what Matt referred to as the "aim suite."
 {: .notice--info}
@@ -212,18 +217,23 @@ For a more comprehensive explanation of how additive animations actually work, c
 
 ### Applying Additives
 
-To apply these additives, we'll take our base pose and layer them on top through a series of `Apply Additive` nodes.
+To apply these additives, we'll take our base pose and layer them on top. Since we want to apply _different_ additives depending on the direction of the driving variable (e.g. `Fall Up` with a positive velocity vs. `Fall Down` with a negative velocity), we can use more blend spaces to determine which additives to play.
 
-Since we want to apply _different_ additives depending on the direction of the driving variable (e.g. `Fall Up` with a positive velocity vs. `Fall Down` with a negative velocity), we can use more blend spaces to determine which additives to play.
+Now, we _could_ create another blend space and use an `Apply Additive` node to apply each one. But a better solution would actually be to use an aforementioned aim offset, because an aim offset is essentially an additive blend space: aim offsets evaluate a blend space and additively apply the result on top of a base pose, which is exactly what we want to do.
 
-This time, I'm actually going to create the blend spaces _inside_ the animation blueprint. This way, we don't need to create a blend space for every additive set, for every character; we can just change the additive animation assets in each character's animation blueprint.
+Instead of creating an aim offset asset, I'm actually going to create the aim offsets _inside_ the animation blueprint with the `Aim Offset Blend Space` node. This way, we don't need to create an aim offset asset for every additive set, for every character; we can just change the additive animation assets in each character's animation blueprint.
 
-**TODO: Anim BP without params**
+![Additive animation settings]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-aim-offsets-no-params-01.png){: .align-center}
 
-Each blend space axis will scale from -1.0 to 1.0. Inside, each one is simply evaluating a bound animation sequence at the end of each axis. Since we're treating our additive animations as poses, we can skip the overhead of actually playing them, and instead just evaluate the pose at their first (and only) frame.
+Each aim offset axis will scale from -1.0 to 1.0. Inside, each one is simply evaluating a bound animation sequence at the end of each axis. Since we're treating our additive animations as poses, we can skip the overhead of actually playing them, and instead just evaluate the pose at their first (and only) frame.
 
-Here are the settings _Cloud Crashers_ uses for our additive animations. Notice how, like an aim offset, they're simply single-frame animation sequences.
-**TODO: additive animation**
+Our `Alpha` should always be 1.0, so I've unchecked `Expose as Pin` from the `Alpha` binding. I've also left the horizontal axis of the `Falling Offset` aim offset as "None" and unchecked `Expose as Pin` on its binding to hide it, since we only need one axis for this offset.
+{: .notice--info}
+
+Here are the settings _Cloud Crashers_ uses for our additive animations. Notice how, like an aim offset, they're simply single-frame animation sequences. Also note that the `Base Pose Animation` is set to an animation called `Aim Forward`. This is simply the first frame of the `Idle` animation exported to a separate animation for convenience. This additive would function the same way if `Base Pose Animation` were set to the first frame of the `Idle` animation itself.
+<br>
+<br>
+![Additive animation settings]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-additive-settings-01.png){: .align-center}
 {: .notice--info}
 
 ### Calculating Additives
