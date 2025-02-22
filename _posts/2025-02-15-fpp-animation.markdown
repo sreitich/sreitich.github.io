@@ -196,11 +196,11 @@ Now, we have a base locomotive pose based on our directional movement speed:
 
 Now things get more interesting. To add that extra level of personality to our animations, we're going to use additive poses to offset the base pose. We want to apply three different additives:
 
-- **Movement Sway**: Make the character lean in the direction they're moving or lag behind.
-- **Aim Sway**: Make the character's weapon lead the player's aim or lag behind when they turn.
-- **Falling Offset**: Blend to a `Jumping` or `Landing` pose based on the character's vertical velocity. This results in a procedural "Jump" animation that is more flexible and, more importantly, looks much nicer than one using a state machine (i.e. `Grounded` -> `Jumping` -> `Apex` -> `Falling` -> `Landing` -> `Grounded`).
+- **Movement Sway**: Make the character lean toward or lag behind the direction they're moving.
+- **Aim Sway**: Make the character's weapon lead or lag behind the player's aim when they turn.
+- **Falling Offset**: Blend to a `Jumping` or `Landing` pose based on the character's vertical velocity. This creates a procedural "Jump" animation that is more flexible and, more importantly, looks much nicer than one that uses a state machine (i.e. `Grounded` -> `Jumping` -> `Apex` -> `Falling` -> `Landing` -> `Grounded`).
 
-Just so it's clear what we're trying to achieve, here's an example of what these poses may look like. This is the set of additive poses for the Knight character:
+Just so it's clear what we're trying to achieve, here's an example of what these poses may look like. This is the set of additive poses for the **Knight** character:
 
 <video width="100%" height="100%" muted autoplay loop>
    <source src="/assets/videos/fpp-anim-additive-poses-vid.mp4" type="video/mp4">
@@ -210,9 +210,13 @@ Just so it's clear what we're trying to achieve, here's an example of what these
 If you watched the GDC talk linked at the beginning of this page, this is what Matt referred to as the "aim suite."
 {: .notice--info}
 
+Here's what these animation assets actually look like in _Cloud Crashers_. Notice how they're simply an animation sequence that's one frame-long (yours don't need to be exactly one frame, but we'll only ever use one frame of the animation):
+
+![Additive animation asset]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-additive-settings-01.png){: .align-center}
+
 Applying these sways and offsets as additive animations allows us to apply them on top of whatever the character animation is currently playing, similar to an [aim offset](https://dev.epicgames.com/documentation/en-us/unreal-engine/aim-offset-in-unreal-engine). Whether we're idling, walking, reloading, or doing anything else, our sways and offsets will still be applied.
 
-For a more comprehensive explanation of how additive animations actually work, check out Unreal Engine's documentation on layered animations.
+For a short explanation of how additive animations actually work, check out the documentation on aim offsets, linked above.
 {: .notice--info}
 
 ### Applying Additives
@@ -223,17 +227,20 @@ Now, we _could_ create another blend space and use an `Apply Additive` node to a
 
 Instead of creating an aim offset asset, I'm actually going to create the aim offsets _inside_ the animation blueprint with the `Aim Offset Blend Space` node. This way, we don't need to create an aim offset asset for every additive set, for every character; we can just change the additive animation assets in each character's animation blueprint.
 
-![Additive animation settings]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-aim-offsets-no-params-01.png){: .align-center}
-
-Each aim offset axis will scale from -1.0 to 1.0. Inside, each one is simply evaluating a bound animation sequence at the end of each axis. Since we're treating our additive animations as poses, we can skip the overhead of actually playing them, and instead just evaluate the pose at their first (and only) frame.
+![Additive aim offset nodes in animation graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-aim-offsets-no-params-01.png){: .align-center}
 
 Our `Alpha` should always be 1.0, so I've unchecked `Expose as Pin` from the `Alpha` binding. I've also left the horizontal axis of the `Falling Offset` aim offset as "None" and unchecked `Expose as Pin` on its binding to hide it, since we only need one axis for this offset.
 {: .notice--info}
 
-Here are the settings _Cloud Crashers_ uses for our additive animations. Notice how, like an aim offset, they're simply single-frame animation sequences. Also note that the `Base Pose Animation` is set to an animation called `Aim Forward`. This is simply the first frame of the `Idle` animation exported to a separate animation for convenience. This additive would function the same way if `Base Pose Animation` were set to the first frame of the `Idle` animation itself.
-<br>
-<br>
-![Additive animation settings]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-additive-settings-01.png){: .align-center}
+Inside, each aim offset has samples evaluating a bound animation sequence at the extrema of each axis. Since we're treating our additive animations as poses, we can skip the overhead of actually playing them, and instead just evaluate the pose at their first (and only) frame (specified by the `Explicit Time` parameter). On the left, you'll also see the new variables we've created to bind our animation assets.
+
+![Aim offset graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-additive-aim-offsets-no-params-01.png){: .align-center}
+
+![Aim offset sample]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-additive-aim-offsets-no-params-02.png){: .align-center}
+
+For the samples at the center of our graph (`(0, 0)`, where we don't want to apply any additives), we're evaluating whatever pose our additives are defined relative to. This ensures that no additives are applied when the additive value is `0.0`. Otherwise, our aim offsets will try to create a base pose by averaging each additive, instead of just leaving the underlying animation alone when we don't want any additives applied to it.
+
+For _Cloud Crashers_, our additives are defined relative to the first frame of the `Idle` animation, which we export as an asset called `Aim Forward` for convenience. You can see this in the image of the additive animation asset above.
 {: .notice--info}
 
 ### Calculating Additives
