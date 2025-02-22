@@ -84,9 +84,24 @@ Let's create a new animation blueprint based on our animation instance class, an
 This is how we'll define all of our animation assets. This way, to make each character's animation blueprint, all we have to do is subclass this animation blueprint and set each variable to use that character's unique animation assets and settings.
 {: .notice--info}
 
+This blend space will work perfectly for our grounded movement, but we also need to account for when we jump or fall. So, before we go any further, let's create a new state machine that will switch between our grounded and airborne locomotion:
+
+![Locomotion state machine]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-locomotion-sm-01.png){: .align-center}
+
+Inside, we only need two states: one for when we're on the ground and one for when we're in the air. For the grounded state, we'll use the blend space we just created (you can just copy/paste it). For our airborne state, we'll simply loop a new `Falling` animation sequence, which we can bind to a new variable (in _Cloud Crashers_, we just loop the idle animation):
+
+![Locomotion state machine states]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-locomotion-sm-02.png){: .align-center}
+
+![Airborne state]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-locomotion-sm-03.png){: .align-center}
+
+State machines for jumping are usually extremely complex, in order to account for each state of the jump (`Jump`, `Falling Up`, `Apex`, etc.). But we're actually going to create our jump animations procedurally with our additives later, so we just need this one state.
+{: .notice--info}
+
+Next, we'll calculate the parameters we need to drive our blend space and transition between our locomotion states.
+
 ### Calculating Velocity Data
 
-To blend our animations, we need our character's speed. Specifically, because we're using a 2D blend space that can define animations for walking in each direction, we want to know how fast the character is moving forwards or backwards, and right or left.
+To blend the animations in our blend space, we need our character's speed. Specifically, because we're using a 2D blend space that can define animations for walking in each direction, we want to know how fast the character is moving forwards or backwards, and right or left.
 
 _Cloud Crashers_ uses the same walking animation regardless of the direction the character is moving, but we have the option to use directional animations. Either way, we'll need these variables to calculate our additives later.
 {: .notice--info}
@@ -185,10 +200,21 @@ Back in our animation blueprint, we can bind our local, normalized velocity to o
 
 ![Blend space player final]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-locomotion-bs-02.png){: .align-center}
 
-Now, we have a base locomotive pose based on our directional movement speed:
+Now, we have a base locomotive pose based on our directional movement speed. But we still need to transition between our `Grounded` and `Airborne` states. If we don't, we'll keep running when we jump or fall, which isn't what we want.
+
+To transition between states, we can simply check the character's current movement mode inside the transition rules:
+
+![Grounded to airborne transition rule]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-sm-rule-01.png){: .align-center}
+
+![Airborne to grounded transition rule]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-sm-rule-02.png){: .align-center}
+
+Remember to use the `Property Access` node to keep our blueprint thread-safe!
+{: .notice--info}
+
+Finally, we have our base pose, based on our directional movement speed _and_ our current movement state:
 
 <video width="100%" height="100%" muted autoplay loop>
-   <source src="/assets/videos/fpp-anim-locomotion-bs-final-vid.mp4" type="video/mp4">
+   <source src="/assets/videos/fpp-anim-locomotion-final-vid.mp4" type="video/mp4">
     Video tag not supported.
 </video>
 
@@ -198,7 +224,7 @@ Now things get more interesting. To add that extra level of personality to our a
 
 - **Movement Sway**: Make the character lean toward or lag behind the direction they're moving.
 - **Aim Sway**: Make the character's weapon lead or lag behind the player's aim when they turn.
-- **Falling Offset**: Blend to a `Jumping` or `Landing` pose based on the character's vertical velocity. This creates a procedural "Jump" animation that is more flexible and, more importantly, looks much nicer than one that uses a state machine (i.e. `Grounded` -> `Jumping` -> `Apex` -> `Falling` -> `Landing` -> `Grounded`).
+- **Falling Offset**: Blend to a `Jumping` or `Landing` pose based on the character's vertical velocity. This creates a procedural "Jump" animation that is more flexible and, more importantly, looks much nicer than one that uses a state machine (i.e. `Grounded` -> `Jump` -> `Falling Up` -> `Apex` -> `Falling Down` -> `Landing` -> `Grounded`).
 
 Just so it's clear what we're trying to achieve, here's an example of what these poses may look like. This is the set of additive poses for the **Knight** character:
 
@@ -255,4 +281,4 @@ Logically, if we normalize these values and bind them to our blend spaces, like 
 
 **TODO: linear mode, no BS smoothing**
 
-Well, that looks... odd. This is because we don't have any smoothing in our blend space. Characters in _Cloud Crashers_ have an acceleration speed of , so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to stationary very quickly.
+Well, that looks... odd. If you looked closely at the `Blend Space` settings in our aim offsets, you may realize that this is because we aren't smoothing between our additives. Characters in _Cloud Crashers_ have an acceleration speed of , so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to stationary very quickly.
