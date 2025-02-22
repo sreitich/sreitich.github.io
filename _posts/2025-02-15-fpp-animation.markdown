@@ -71,7 +71,7 @@ UFirstPersonCharacterAnimInstance::UFirstPersonCharacterAnimInstance()
 Remember to replace `PROJECTCRASH_API` with your game's API name. Unreal does this automatically if you use the "New C++ Class..." option.
 {: .notice--info}
 
-### Locomotion Blend Space
+### Locomotion Blend Space and State Machine
 
 Like Matt says, we need to start with a base pose for our character. Then, we'll play our animations on top of that (we'll use Unreal Engine's [animation slots](https://dev.epicgames.com/documentation/en-us/unreal-engine/animation-slots-in-unreal-engine) instead of [Maya Layers](https://help.autodesk.com/view/MAYAUL/2024/ENU/?guid=GUID-5C202CB8-EB3C-4ADE-B203-5F93A9FD9104)), and apply additive poses on top of the resulting animation.
 
@@ -88,7 +88,9 @@ This blend space will work perfectly for our grounded movement, but we also need
 
 ![Locomotion state machine]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-locomotion-sm-01.png){: .align-center}
 
-Inside, we only need two states: one for when we're on the ground and one for when we're in the air. For the grounded state, we'll use the blend space we just created (you can just copy/paste it). For our airborne state, we'll simply loop a new `Falling` animation sequence, which we can bind to a new variable (in _Cloud Crashers_, we just loop the idle animation):
+Inside, we only need two states: one for when we're on the ground and one for when we're in the air. For the grounded state, we'll use the blend space we just created (you can just copy/paste it).
+
+For our airborne state, we'll simply loop a new `Falling` animation sequence, which we can bind to a new variable (in _Cloud Crashers_, we just re-use the idle animation):
 
 ![Locomotion state machine states]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-locomotion-sm-02.png){: .align-center}
 
@@ -196,7 +198,7 @@ void UFirstPersonCharacterAnimInstance::UpdateVelocityData()
 }
 {% endhighlight %}
 
-Back in our animation blueprint, we can bind our local, normalized velocity to our blend space player (I've given the blend space asset a default value here so we can see a preview):
+Back in our animation blueprint, we can bind our local, normalized velocity to our blend space player:
 
 ![Blend space player final]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-locomotion-bs-02.png){: .align-center}
 
@@ -281,4 +283,8 @@ Logically, if we normalize these values and bind them to our blend spaces, like 
 
 **TODO: linear mode, no BS smoothing**
 
-Well, that looks... odd. If you looked closely at the `Blend Space` settings in our aim offsets, you may realize that this is because we aren't smoothing between our additives. Characters in _Cloud Crashers_ have an acceleration speed of , so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to stationary very quickly.
+Well, that looks... odd. If you looked closely at the `Blend Space` settings in our aim offsets, you might realize that this is because we aren't smoothing between our additives.
+
+Characters in _Cloud Crashers_ have an acceleration speed of `16384.0 cm/s`, so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to being idle very quickly. The same issue occurswith our other additives when we turn, jump, or falls.
+
+By adding `Smoothing Time` to our aim offsets, we'll blend between additives more slowly, creating a smoother transition. Let's try some different methods:
