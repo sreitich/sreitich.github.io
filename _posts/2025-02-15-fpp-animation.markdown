@@ -281,10 +281,24 @@ Here's where things get tricky: our blend spaces need parameters to determine ho
 
 Logically, if we normalize these values and bind them to our blend spaces, like we did with our locomotion, we should get what we're looking for. So let's see what happens when we try this:
 
-**TODO: linear mode, no BS smoothing**
+**TODO: linear additive application, no BS smoothing**
 
 Well, that looks... odd. If you looked closely at the `Blend Space` settings in our aim offsets, you might realize that this is because we aren't smoothing between our additives.
 
 Characters in _Cloud Crashers_ have an acceleration speed of `16384.0 cm/s`, so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to being idle very quickly. The same issue occurswith our other additives when we turn, jump, or falls.
 
-By adding `Smoothing Time` to our aim offsets, we'll blend between additives more slowly, creating a smoother transition. Let's try some different methods:
+By adding `Smoothing Time` to our aim offsets, we'll blend between additives more slowly, creating a smoother transition. Let's try using the `Ease In/Out` smoothing type:
+
+**TODO: linear additive application, ease in/out smoothing**
+
+Okay, that's a _little_ better. Maybe one of the other smoothing types will look better?
+
+I'll save you the time: they don't. So what's wrong?
+
+Let's take a second to think about what effect we actually want to achieve. We want to realistically simulate how our body organically reacts to movement. Our current method is simply linearly interpolating between different poses depending on the direction we're moving, but our bodies don't move that mechanically. What we need is some kind of model that can simulate the natural way our muscles ease in and out of movement, overshoot or undershoot their destination, and take time to settle into a resting position.
+
+Fortunately for us, there's a simple mathematical model that does just that, and it's what a lot of first-person shooter games use to create natural-looking sways: **springs**.
+
+### Springs
+
+**TODO**
