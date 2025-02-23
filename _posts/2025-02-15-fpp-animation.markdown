@@ -370,11 +370,11 @@ protected:
     UPROPERTY(BlueprintReadOnly, Category = "Aim Data")
     FRotator AimRotation;
     
-    // The normalized rate at which the owning character's aim yaw is changing.
+    // The normalized rate at which the owning character's aim yaw is changing, in degrees/second.
     UPROPERTY(BlueprintReadOnly, Category = "Aim Data", DisplayName = "Aim Speed (Right/Left)")
     float AimSpeedRightLeft;
     
-    // The normalized rate at which the owning character's aim pitch is changing.
+    // The normalized rate at which the owning character's aim pitch is changing, in degrees/second.
     UPROPERTY(BlueprintReadOnly, Category = "Aim Data", DisplayName = "Aim Speed (Up/Down)")
     float AimSpeedUpDown;
 {% endhighlight %}
@@ -406,3 +406,280 @@ void UFirstPersonCharacterAnimInstance::UpdateAimData(float DeltaSeconds)
 In _Cloud Crashers_, we skip the aim speed calculation the first frame. If our character is spawned, for example, with a rotation of `(0, 0, 180)`, our initial aim speed will be 180 degrees/second, because `AimRotation` is initialized to `(0, 0, 0)`. On the first frame, we just update `AimRotation`, to properly initialize it, and leave our aim speeds at `0.0` to avoid this.
 {: .notice--info}
 
+Now, we have our current aim speed in `Degrees/Second`.
+
+### Calculating Springs
+
+Finally, it's time to calculate our additive values. For each of our three additive sets, we'll need three sets of variables.
+
+First, we need `CurrentSpring` scalar variables to track the current value of each additive (this is the `Current Value` mentioned earlier). These variables are what we'll actually use as the parameters for our aim offsets.
+
+Second, we need `SpringState` variables of type `FFloatSpringState`. These are used by spring models to track the current state of each spring. But Unreal is nice enough to handle these variables for us; all we need to do is define them and pass them into the spring model calculations.
+
+Lastly, we need a set of variables to define the properties of each spring model. This will allow us to finely tune the behavior of each spring: we can control how quickly they move, how stiff they are, how much they oscillate, etc. **This** is the real highlight of the entire animation system: having unique, fully customizable models for _every_ additive of _every_ character allows us to give each character a distinct look and feel, and gives us the creative freedom to easily make that look and feel whatever we want!
+
+Spring models are defined by a few different properties. So before we start adding any variables, let's go ahead and create a new structure to more efficiently define our different spring models:
+
+{% highlight c++ %}
+// FirstPersonCharacterAnimInstance.h, right above our FirstPersonCharacterAnimInstance class.
+
+/**
+ * Defines the behavior of a spring model. Used for performing calculations for sway animations.
+ */
+USTRUCT(BlueprintType)
+struct FFloatSpringModelData
+{
+    GENERATED_BODY()
+
+    /* Controls the amplitude of the spring model. This value is signed, so setting it to a negative number reverses the
+     * direction of the spring (e.g. to create the effect of leading versus lagging). */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Spring Model", Meta = (ClampMin = -10.0f, UIMin = -10.0f, ClampMax = 10.0f, UIMax = 10.0f))
+    float InterpSpeed = 1.0f;
+
+    /* Represents the stiffness of this spring. Higher values reduce overall oscillation. Scales with Mass (i.e. a lower
+     * mass will make the spring appear less stiff). */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Spring Model", Meta = (ClampMin = 0.0f, UIMin = 0.0f, ClampMax = 100.0f, UIMax = 100.0f))
+    float Stiffness = 25.0f;
+
+    /* The amount of damping applied to the spring. 0.0 means no damping (full oscillation), 1.0 means full damping
+     * (no oscillation). */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Spring Model", Meta = (ClampMin = 0.0f, UIMin = 0.0f, ClampMax = 1.0f, UIMax = 1.0f))
+    float CriticalDampingFactor = 0.5f;
+
+    // A multiplier that simulates the spring's, affecting the amount of force required to oscillate it.
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Spring Model", Meta = (ClampMin = 1.0f, UIMin = 1.0f, ClampMax = 100.0f, UIMax = 100.0f))
+    float Mass = 10.0f;
+};
+{% endhighlight %}
+
+`Clamp Min/Max` and `UI Min/Max` define the lower and upper bounds when setting these variables in the editor (`Clamp` limits the values set, `UI` defines a slider for adjusting them). I've found these to be good values through testing, but feel free to tweak them if you want.
+{: .notice--info}
+
+### Movement Sway
+
+Let's start with our first additive suite: movement sway. Here are the variables we'll need:
+
+{% highlight c++ %}
+// Spring models.
+protected:
+
+    // The spring model used to drive forward/backward movement sway for this animation instance.
+    UPROPERTY(EditDefaultsOnly, Category = "Spring Models|Movement Sway", DisplayName = "Forward/Backward Sway Spring Model")
+    FFloatSpringModelData MoveSwayForwardBackwardSpringModelData;
+
+    // The spring model used to drive right/left movement sway for this animation instance.
+    UPROPERTY(EditDefaultsOnly, Category = "Spring Models|Movement Sway", DisplayName = "Right/Left Sway Spring Model")
+    FFloatSpringModelData MoveSwayRightLeftSpringModelData;
+
+// Current spring values.
+protected:
+
+    // The current spring value of the forward/backward movement sway spring.
+    UPROPERTY(BlueprintReadOnly, Category = "Sway Data|Movement Sway", DisplayName = "Current Movement Sway Value (Forward/Backward)")
+    float CurrentSpringMoveForwardBackward;
+
+    // The current spring value of the right/left movement sway spring.
+    UPROPERTY(BlueprintReadOnly, Category = "Sway Data|Movement Sway", DisplayName = "Current Movement Sway Value (Right/Left)")
+    float CurrentSpringMoveRightLeft;
+
+// Internal spring states.
+private:
+
+    // Spring state for the forward/backward movement sway's spring calculations.
+    FFloatSpringState SpringStateMoveForwardBackward;
+
+    // Spring state for the right/left movement sway's spring calculations.
+    FFloatSpringState SpringStateMoveRightLeft;
+{% endhighlight %}
+
+You might realize that `FirstPersonCharacterAnimInstance` is starting to get pretty long (good thing we didn't do this in our animation blueprint!). If you want to see how we keep everything organized in _Cloud Crashers_, check out our [FirstPersonCharacterAnimInstance.h](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/FirstPersonCharacterAnimInstance.h) file.
+{: .notice--info}
+
+Next, let's create a new function to perform our movement sway update.
+
+{% highlight c++ %}
+protected:
+
+    // Updates movement sway data using a spring model.
+    void UpdateMovementSwayData();
+{% endhighlight %}
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
+{
+    // ...
+
+    UpdateMovementSwayData();
+}
+{% endhighlight %}
+
+Inside, we'll start by calculating the `Target Value` for our forward/backward movement sway's spring. We do this by normalizing our current speed with our character maximum speed (just like we did for our locomotion blend space), and scaling it with our spring model's `InterpSpeed`.
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
+{
+    // Use the owning pawn's maximum movement speed as the bound for movement sway.
+    const float MaxMovementSpeed = TryGetPawnOwner()->GetMovementComponent()->GetMaxSpeed();
+
+    // Calculate the forward/backward movement spring target.
+    const float ClampedSpeedX = FMath::Clamp(LocalVelocity2D.X, -MaxMovementSpeed, MaxMovementSpeed);
+    const float SpringTargetForwardBackward = UKismetMathLibrary::NormalizeToRange((ClampedSpeedX * MoveSwayForwardBackwardSpringModelData.InterpSpeed), 0.0f, MaxMovementSpeed);
+}
+{% endhighlight %}
+
+Next, we'll retrieve our `DeltaSeconds` to use in our spring calculation. But if `DeltaSeconds` is too large, we'll return early. We do this to avoid unnecessary calculations at low frame rates. At these frame rates, our movement and aim values are being updated so slowly that our sways and offsets will look choppy (plus, this skips unnecessary calculations during poor performance: no one will notice a missing sway at 10 FPS):
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
+{
+    // ...
+
+    // Don't bother performing spring calculations at low frame-rates.
+    const float DeltaSeconds = GetDeltaSeconds();
+    if (DeltaSeconds > MIN_DELTA_TIME_FOR_SPRING_CALCULATIONS)
+    {
+        return;
+    }
+}
+{% endhighlight %}
+
+You can hard-code any value for this. In _Cloud Crashers_, we use a macro called `MIN_DELTA_TIME_FOR_SPRING_CALCULATIONS`. This is defined at the top of the file like this:
+
+{% highlight c++ %}
+// Inverse of the minimum frame rate required to perform spring calculations.
+#define MIN_DELTA_TIME_FOR_SPRING_CALCULATIONS 0.1f // 10 fps
+{% endhighlight %}
+
+Before we perform the spring calculation, let's scale our spring model's `Stiffness` value. The effective range of the `Stiffness` parameter in the spring calculation is a little unintuitive. Scaling it by a constant value can change this range to something more intuitive for animators. In _Cloud Crashers_, we use another macro set at a value of `35.0`, which results the range close to `0 - 100`:
+
+
+{% highlight c++ %}
+/* Universal multiplier applied to spring model stiffness. Used to scale stiffness values to a more intuitive
+ * range for animators. */
+#define SPRING_STIFFNESS_SCALER 35.0f
+{% endhighlight %}
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
+{
+    // ...
+    
+    /* Apply an arbitrary multiplier to the spring's stiffness value. This scales viable spring stiffness values to a
+     * more intuitive range of (0 - 100) when adjusting spring model data. */
+    const float EffectiveStiffness = MoveSwayForwardBackwardSpringModelData.Stiffness * SPRING_STIFFNESS_SCALER;
+}
+{% endhighlight %}
+
+Finally, we'll perform the spring calculation. This is as easy as calling Unreal's built-in function for float spring interpolation:
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
+{
+    // ...
+
+    // Perform the spring calculation with the given data.
+    CurrentSpringMoveForwardBackward = UKismetMathLibrary::FloatSpringInterp
+    (
+        CurrentSpringMoveForwardBackward,
+        SpringTargetForwardBackward,
+        SpringStateMoveForwardBackward,
+        EffectiveStiffness,
+        MoveSwayForwardBackwardSpringModelData.CriticalDampingFactor,
+        DeltaSeconds,
+        MoveSwayForwardBackwardSpringModelData.Mass,
+        1.0f,
+        false
+    );
+}
+{% endhighlight %}
+
+Now, we need to do the exact same thing for our right/left movement sway. And since we'll be performing this exact same process for _every_ additive calculation, let's actually move most of this code to a new helper function, which we'll call `UpdateFloatSpringInterp`:
+
+{% highlight c++ %}
+protected:
+
+    /**
+     * Performs a float spring interpolation using the given data.
+     *
+     * @param SpringCurrent			The current spring interpolation value.
+     * @param SpringTarget			The target spring interpolation value.
+     * @param SpringState			Data for the calculating spring model. Each spring model should use a unique spring
+     *								state variable.
+     * @param SpringData			Data used to define the behavior of the spring model.
+     * @return						The resulting spring interpolation value.
+     */
+    float UpdateFloatSpringInterp(float SpringCurrent, float SpringTarget, FFloatSpringState& SpringState, FFloatSpringModelData& SpringData);
+{% endhighlight %}
+
+{% highlight c++ %}
+float UFirstPersonCharacterAnimInstance::UpdateFloatSpringInterp(float SpringCurrent, float SpringTarget, FFloatSpringState& SpringState, FFloatSpringModelData& SpringData)
+{
+    const float DeltaSeconds = GetDeltaSeconds();
+    
+    // Don't bother performing spring calculations at low frame-rates.
+    if (DeltaSeconds > MIN_DELTA_TIME_FOR_SPRING_CALCULATIONS)
+    {
+        return SpringCurrent;
+    }
+    
+    /* Apply an arbitrary multiplier to the spring's stiffness value. This scales viable spring stiffness values to a
+     * more intuitive range of (0 - 100) when adjusting spring model data. */
+    const float EffectiveStiffness = SpringData.Stiffness * SPRING_STIFFNESS_SCALER;
+    
+    // Perform the spring calculation with the given data.
+    return UKismetMathLibrary::FloatSpringInterp
+    (
+        SpringCurrent,
+        SpringTarget,
+        SpringState,
+        EffectiveStiffness,
+        SpringData.CriticalDampingFactor,
+        DeltaSeconds,
+        SpringData.Mass,
+        1.0f,
+        false
+    );
+}
+{% endhighlight %}
+
+Now we can replace most of the code in our `UpdateMovementSwayData`. Here's what the final version of the function looks like when we also add the calculation for our right/left movement sway:
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
+{
+    // Use the owning pawn's maximum movement speed as the bound for movement sway.
+    const float MaxMovementSpeed = TryGetPawnOwner()->GetMovementComponent()->GetMaxSpeed();
+
+    // Calculate the forward/backward movement spring.
+    const float ClampedSpeedX = FMath::Clamp(LocalVelocity2D.X, -MaxMovementSpeed, MaxMovementSpeed);
+    const float SpringTargetForwardBackward = UKismetMathLibrary::NormalizeToRange((ClampedSpeedX * MoveSwayForwardBackwardSpringModelData.InterpSpeed), 0.0f, MaxMovementSpeed);
+
+    CurrentSpringMoveForwardBackward = UpdateFloatSpringInterp
+    (
+        CurrentSpringMoveForwardBackward,
+        SpringTargetForwardBackward,
+        SpringStateMoveForwardBackward,
+        MoveSwayForwardBackwardSpringModelData
+    );
+
+    // Calculate the right/left movement spring.
+    const float ClampedSpeedY = FMath::Clamp(LocalVelocity2D.Y, -MaxMovementSpeed, MaxMovementSpeed);
+    const float SpringTargetRightLeft = UKismetMathLibrary::NormalizeToRange((ClampedSpeedY * MoveSwayRightLeftSpringModelData.InterpSpeed), 0.0f, MaxMovementSpeed);
+
+    CurrentSpringMoveRightLeft = UpdateFloatSpringInterp
+    (
+        CurrentSpringMoveRightLeft,
+        SpringTargetRightLeft,
+        SpringStateMoveRightLeft,
+        MoveSwayRightLeftSpringModelData
+    );
+}
+{% endhighlight %}
+
+Perfect! And before we move on, we can check to see if this works! All we have to do is plug our `CurrentSpringMoveForwardBackward` and `CurrentSpringMoveRightLeft` variables into our aim offset:
+
+**TODO Movement sway aim offset w/ params**
+
+If we test out our animation blueprint now, we'll see our movement sway works! We can adjust our spring models' properties inside the animation blueprint to get whatever effect we want. We can even edit them during PIE and see our sway change in real time!
+
+**TODO movement sway demo with real-time spring model changes**
