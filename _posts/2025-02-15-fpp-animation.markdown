@@ -347,16 +347,16 @@ Let's create a new function to calculate this data, with a float parameter calle
 
 {% highlight c++ %}
 protected:
-
-	// Calculate aim data this frame.
-	void UpdateAimData(float DeltaSeconds);
+    
+    // Calculate aim data this frame.
+    void UpdateAimData(float DeltaSeconds);
 {% endhighlight %}
 
 {% highlight c++ %}
 void UFirstPersonCharacterAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
 {
     // ...
-
+    
     UpdateAimData(DeltaSeconds);
 }
 {% endhighlight %}
@@ -366,17 +366,17 @@ Let's also add the variables we'll be calculating:
 {% highlight c++ %}
 protected:
 
-	// This character's current base aim rotation.
-	UPROPERTY(BlueprintReadOnly, Category = "Aim Data")
-	FRotator AimRotation;
-
-	// The normalized rate at which the owning character's aim yaw is changing.
-	UPROPERTY(BlueprintReadOnly, Category = "Aim Data", DisplayName = "Aim Speed (Right/Left)")
-	float AimSpeedRightLeft;
-
-	// The normalized rate at which the owning character's aim pitch is changing.
-	UPROPERTY(BlueprintReadOnly, Category = "Aim Data", DisplayName = "Aim Speed (Up/Down)")
-	float AimSpeedUpDown;
+    // This character's current base aim rotation.
+    UPROPERTY(BlueprintReadOnly, Category = "Aim Data")
+    FRotator AimRotation;
+    
+    // The normalized rate at which the owning character's aim yaw is changing.
+    UPROPERTY(BlueprintReadOnly, Category = "Aim Data", DisplayName = "Aim Speed (Right/Left)")
+    float AimSpeedRightLeft;
+    
+    // The normalized rate at which the owning character's aim pitch is changing.
+    UPROPERTY(BlueprintReadOnly, Category = "Aim Data", DisplayName = "Aim Speed (Up/Down)")
+    float AimSpeedUpDown;
 {% endhighlight %}
 
 We want to calculate our rotation speed in `Degrees/Second`. We can do this with the following formula:
@@ -389,15 +389,15 @@ $$\frac{Degrees}{Second} = \frac{Degrees}{Frame} \cdot \frac{Frames}{Second}$$
 void UFirstPersonCharacterAnimInstance::UpdateAimData(float DeltaSeconds)
 {
     const FRotator PreviousAimRotation = AimRotation;
-
+    
     AimRotation = TryGetPawnOwner()->GetBaseAimRotation();
-	AimRotation.Pitch = FRotator::NormalizeAxis(AimRotation.Pitch); // Fix for a problem with how UE replicates aim rotation.
-
+    AimRotation.Pitch = FRotator::NormalizeAxis(AimRotation.Pitch); // Fix for a problem with how UE replicates aim rotation.
+    
     // Use a normalized delta to account for winding (e.g. 359.0 -> 1.0 should be 2.0, not -358.0).
-	const FRotator RotationDelta = UKismetMathLibrary::NormalizedDeltaRotator(AimRotation, PreviousAimRotation);
-
+    const FRotator RotationDelta = UKismetMathLibrary::NormalizedDeltaRotator(AimRotation, PreviousAimRotation);
+    
     const float InverseDeltaSeconds = ((DeltaSeconds > 0.0f) ? (1.0f / DeltaSeconds) : 0.0f); // Avoid dividing by 0.
-
+    
     AimSpeedRightLeft = RotationDelta.Yaw * InverseDeltaSeconds;
     AimSpeedUpDown = RotationDelta.Pitch * InverseDeltaSeconds;
 }
