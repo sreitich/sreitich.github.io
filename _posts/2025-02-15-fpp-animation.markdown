@@ -228,6 +228,9 @@ Now things get more interesting. To add that extra level of personality to our a
 - **Aim Sway**: Make the character's weapon lead or lag behind the player's aim when they turn.
 - **Falling Offset**: Blend to a `Jumping` or `Landing` pose based on the character's vertical velocity. This creates a procedural "Jump" animation that is more flexible and, more importantly, looks much nicer than one that uses a state machine (i.e. `Grounded` -> `Jump` -> `Falling Up` -> `Apex` -> `Falling Down` -> `Landing` -> `Grounded`).
 
+You might hear some people say "rolls," "aim roll," or "turning sway" instead of "aim sway."
+{: .notice--info}
+
 Just so it's clear what we're trying to achieve, here's an example of what these poses may look like. This is the set of additive poses for the **Knight** character:
 
 <video width="100%" height="100%" muted autoplay loop>
@@ -288,7 +291,7 @@ Logically, if we normalize these values and bind them to our blend spaces, like 
 
 Well, that looks... odd. If you looked closely at the `Blend Space` settings in our aim offsets, you might realize that this is because we aren't smoothing between our additives.
 
-Characters in _Cloud Crashers_ have an acceleration speed of `16384.0 cm/s`, so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to being idle very quickly. The same issue occurswith our other additives when we turn, jump, or falls.
+Characters in _Cloud Crashers_ have an acceleration speed of `16384.0 cm/s`, so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to being idle very quickly. The same issue occurs with our other additives when we turn, jump, or falls.
 
 By adding `Smoothing Time` to our aim offsets, we'll blend between additives more slowly, creating a smoother transition. Let's try using the `Ease In/Out` smoothing type:
 
@@ -303,10 +306,103 @@ I'll save you the time: they don't. So what's wrong?
 
 Let's take a second to think about what effect we actually want to achieve.
 
-We want to realistically simulate how our body organically reacts to movement. Our current method is linearly interpolating between different poses depending on the direction we're moving; but our bodies don't move that mechanically. What we need is some kind of model that can simulate the natural way our muscles ease in and out of movement, overshoot or undershoot their destination, and take time to settle into a resting position.
+We want to realistically simulate how our body organically reacts to movement. Our current method is linearly interpolating between different poses depending on the direction we're moving. We're essentially just "snapping" between different poses depending on the direction we're moving, turning, or falling. Mathematically, blending poses like that (like we did in the first video above) looks like this:
 
-Fortunately for us, there's a simple mathematical model that does just that, and it's what a lot of first-person shooter games use to create natural-looking sways: **springs**.
+![Linear interpolation graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fpp-anim-linear-interpolation-graph-01.png){: .align-center}
 
-### Springs
+The problem is that our bodies don't move that mechanically. When our muscles move, they don't "snap" into place. They take time to start moving, might overshoot their destination, and take time to stop and settle into place. Visually, our muscles move between positions more like this:
 
-**TODO**
+![Spring interpolation graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fpp-anim-spring-interpolation-graph-01.png){: .align-center}
+
+Well, fortunately for us, there's a mathematical model that does exactly this, and it's what a lot of first-person shooter games use to create natural-looking sways: **springs**.
+
+## Springs
+
+Springs (or, more technically, "[_oscillating systems_](https://en.wikipedia.org/wiki/Oscillation)") provide a perfect way to simulate how our bodies move because, from a visual perspective, they move very similarly. Springs have tension, so they take time to start and stop moving, and their bounciness causes them to oscillate back and forth before settling back into place.
+
+The graph above is a simple equation called **[damped oscillation](https://www.geeksforgeeks.org/damped-oscillation-definition-equation-types-examples/)**. We'll be using a more robust model that's already built into Unreal Engine.
+{: .notice--info}
+
+So, how can we leverage spring models to apply additives more naturally?
+
+The current magnitude of each of our additives (i.e. how heavily they're applied) will be determined by a scalar variable called the `Current Value`. Each frame, we'll calculate a `Target Value` using the data from that frame. For example, if we're moving forward very fast, our target value for our forward/backward movement sway will be a large positive number (positive for forward, negative for backward). But if we suddenly stop moving, the target value will be `0`.
+
+Next, we'll plug our `Current Value` and `Target Value` into a spring model. Our spring model will give us a new `Current Value` by stepping towards the `Target Value`, depending on how much time passed this frame. Finally, we update `Current Value`, and repeat this process the next frame, and so on.
+
+By continuously blending towards whichever pose is desired by our additives' dependent values (horizontal, rotational, and vertical velocity, respectively), this method not only achieves more natural-looking blending, but _also_ fixes our smoothing issue. Linear interpolation isn't great at handling sharp changes (like quickly turning back and forth in the video above), but springs are _great_ at it. This is because of how [springs _damp_ oscillations](https://en.wikipedia.org/wiki/Damping): they're able to handle these dramatic changes, and can smoothly interpolate between rapidly changing targets without breaking.
+
+If that's confusing, skip ahead to our final results, and compare how quickly turning right and left looks compared to the videos above. This will more clearly demonstrate the effects of spring damping.
+{: .notice--info}
+
+### Calculating Aim Data
+
+We'll be using the same method of calculation for all three of our additives. We already have the data we need for our movement sway and falling offset (which we collected in our `UpdateVelocityData` function). But we still need to calculate some data for our aim sway.
+
+Our aim sway is determined by how quickly our character is turning right or left and up or down. Since this is a first-person game, our character's rotation is determined by our camera. So all we need to do is calculate how much our camera rotates each frame along each axis: yaw (right/left) and pitch (up/down).
+
+We'll actually use our pawn's `BaseAimRotation`, which gives us the controller's aim rotation, instead of wasting time trying to find the player's camera.
+{: .notice--info}
+
+Let's create a new function to calculate this data, with a float parameter called `DeltaSeconds`. This will be given by `NativeThreadSafeUpdateAnimation`, and it tells us how much time has passed this frame (e.g. at 60 frames/second: `1.0 seconds ÷ 60.0 frames ≈ 0.0167 seconds/frame`). We didn't need this for our movement data because actors already track their velocity, but we'll need to calculate our camera's rotation speed ourselves.
+
+{% highlight c++ %}
+protected:
+
+	// Calculate aim data this frame.
+	void UpdateAimData(float DeltaSeconds);
+{% endhighlight %}
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
+{
+    // ...
+
+    UpdateAimData(DeltaSeconds);
+}
+{% endhighlight %}
+
+Let's also add the variables we'll be calculating:
+
+{% highlight c++ %}
+protected:
+
+	// This character's current base aim rotation.
+	UPROPERTY(BlueprintReadOnly, Category = "Aim Data")
+	FRotator AimRotation;
+
+	// The normalized rate at which the owning character's aim yaw is changing.
+	UPROPERTY(BlueprintReadOnly, Category = "Aim Data", DisplayName = "Aim Speed (Right/Left)")
+	float AimSpeedRightLeft;
+
+	// The normalized rate at which the owning character's aim pitch is changing.
+	UPROPERTY(BlueprintReadOnly, Category = "Aim Data", DisplayName = "Aim Speed (Up/Down)")
+	float AimSpeedUpDown;
+{% endhighlight %}
+
+We want to calculate our rotation speed in `Degrees/Second`. We can do this with the following formula:
+
+$$\frac{Degrees}{Second} = \frac{Degrees}{Frame} \cdot \frac{Frames}{Second}$$
+
+`Degrees/Frame` is the amount we've rotated this frame, and we can calculate `Frames/Second` by taking the inverse of `DeltaSeconds` (since `DeltaSeconds` represents `Seconds/Frame`):
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::UpdateAimData(float DeltaSeconds)
+{
+    const FRotator PreviousAimRotation = AimRotation;
+
+    AimRotation = TryGetPawnOwner()->GetBaseAimRotation();
+	AimRotation.Pitch = FRotator::NormalizeAxis(AimRotation.Pitch); // Fix for a problem with how UE replicates aim rotation.
+
+    // Use a normalized delta to account for winding (e.g. 359.0 -> 1.0 should be 2.0, not -358.0).
+	const FRotator RotationDelta = UKismetMathLibrary::NormalizedDeltaRotator(AimRotation, PreviousAimRotation);
+
+    const float InverseDeltaSeconds = ((DeltaSeconds > 0.0f) ? (1.0f / DeltaSeconds) : 0.0f); // Avoid dividing by 0.
+
+    AimSpeedRightLeft = RotationDelta.Yaw * InverseDeltaSeconds;
+    AimSpeedUpDown = RotationDelta.Pitch * InverseDeltaSeconds;
+}
+{% endhighlight %}
+
+In _Cloud Crashers_, we skip the aim speed calculation the first frame. If our character is spawned, for example, with a rotation of `(0, 0, 180)`, our initial aim speed will be 180 degrees/second, because `AimRotation` is initialized to `(0, 0, 0)`. On the first frame, we just update `AimRotation`, to properly initialize it, and leave our aim speeds at `0.0` to avoid this.
+{: .notice--info}
+
