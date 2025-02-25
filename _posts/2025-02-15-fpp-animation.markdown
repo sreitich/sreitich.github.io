@@ -32,7 +32,7 @@ In this article, I'll show how to implement a flexible first-person animation sy
 If you want to skip over the tutorial and just steal the code (you're completely welcome to), check out the [CharacterAnimInstanceBase](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/CharacterAnimInstanceBase.h) and [FirstPersonCharacterAnimInstance](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/FirstPersonCharacterAnimInstance.h) classes on _Cloud Crashers'_ public source code.
 <br>
 <br>
-As you can see, _Cloud Crashers_ actually uses two animation instance classes: a base class and a first-person subclass. This is because _Cloud Crashers_ also supports third-person, and the third-person class re-uses the code in the base animation instance class. For the sake of simplicity, in this tutorial, I've rewritten the base class and first-person class into a single class.
+As you can see, _Cloud Crashers_ actually uses two animation instance classes: a base class and a first-person subclass. This is because _Cloud Crashers_ also supports third-person, and the third-person class re-uses the data in the base animation instance class. For the sake of simplicity, in this tutorial, I've rewritten the base class and first-person class into a single class.
 {: .notice--info}
 
 ## Base Pose
@@ -219,7 +219,8 @@ Finally, we have our base pose, based on our directional movement speed _and_ ou
    <source src="/assets/videos/per-post/fpp-animation/fpp-anim-locomotion-final-vid.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
+<br>
 ## Additives
 
 Now things get more interesting. To add that extra level of personality to our animations, we're going to use additive poses to offset the base pose. We want to apply three different additives:
@@ -238,7 +239,7 @@ Just so it's clear what we're trying to achieve, here's an example of what these
     Video tag not supported.
 </video>
 
-If you watched the GDC talk linked at the beginning of this page, this is what Matt referred to as the "aim suite."
+If you watched the GDC talk linked at the beginning of this post, this is what Matt called the "aim suite."
 {: .notice--info}
 
 Here's what these animation assets actually look like in _Cloud Crashers_. Notice how they're simply an animation sequence that's one frame-long (yours don't need to be exactly one frame, but we'll only ever use one frame of the animation):
@@ -291,7 +292,7 @@ Logically, if we normalize these values and bind them to our blend spaces, like 
 
 Well, that looks... odd. If you looked closely at the `Blend Space` settings in our aim offsets, you might realize that this is because we aren't smoothing between our additives.
 
-Characters in _Cloud Crashers_ have an acceleration speed of `16384.0 cm/s`, so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to being idle very quickly. The same issue occurs with our other additives when we turn, jump, or falls.
+Characters in _Cloud Crashers_ have an acceleration speed of `16384.0 cm/s`, so whenever we start moving in one direction, we reach our maximum velocity very quickly, and when we stop, we return to being idle very quickly. The same issue occurs with our other additives when we turn, jump, or fall.
 
 By adding `Smoothing Time` to our aim offsets, we'll blend between additives more slowly, creating a smoother transition. Let's try using the `Ease In/Out` smoothing type:
 
@@ -306,7 +307,7 @@ I'll save you the time: they don't. So what's wrong?
 
 Let's take a second to think about what effect we actually want to achieve.
 
-We want to realistically simulate how our body organically reacts to movement. Our current method is linearly interpolating between different poses depending on the direction we're moving. We're essentially just "snapping" between different poses depending on the direction we're moving, turning, or falling. Mathematically, blending poses like that (like we did in the first video above) looks like this:
+We want to realistically simulate how our body organically reacts to movement. Our current method is linearly interpolating between different poses, essentially just "snapping" between poses depending on the direction we're moving, turning, or falling. Mathematically, blending poses like that (like we did in the first video above) looks like this:
 
 ![Linear interpolation graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fpp-anim-linear-interpolation-graph-01.png){: .align-center}
 
@@ -320,7 +321,7 @@ Well, fortunately for us, there's a mathematical model that does exactly this, a
 
 Springs (or, more technically, "[_oscillating systems_](https://en.wikipedia.org/wiki/Oscillation)") provide a perfect way to simulate how our bodies move because, from a visual perspective, they move very similarly. Springs have tension, so they take time to start and stop moving, and their bounciness causes them to oscillate back and forth before settling back into place.
 
-The graph above is a simple equation called **[damped oscillation](https://www.geeksforgeeks.org/damped-oscillation-definition-equation-types-examples/)**. We'll be using a more robust model that's already built into Unreal Engine.
+The graph above is a simple equation called **[damped oscillation](https://www.geeksforgeeks.org/damped-oscillation-definition-equation-types-examples/)**. But we'll be using a more robust model that's already built into Unreal Engine.
 {: .notice--info}
 
 So, how can we leverage spring models to apply additives more naturally?
@@ -513,7 +514,7 @@ void UFirstPersonCharacterAnimInstance::NativeThreadSafeUpdateAnimation(float De
 }
 {% endhighlight %}
 
-Inside, we'll start by calculating the `Target Value` for our forward/backward movement sway's spring. We do this by normalizing our current speed with our character maximum speed (just like we did for our locomotion blend space), and scaling it with our spring model's `InterpSpeed`.
+Inside, we'll start by calculating the `Target Value` for our forward/backward movement sway's spring. We do this by normalizing our current speed with our character's maximum speed (just like we did for our locomotion blend space), and scaling it with our spring model's `InterpSpeed`.
 
 {% highlight c++ %}
 void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
@@ -550,7 +551,7 @@ You can hard-code any value for this. In _Cloud Crashers_, we use a macro called
 #define MIN_DELTA_TIME_FOR_SPRING_CALCULATIONS 0.1f // 10 fps
 {% endhighlight %}
 
-Before we perform the spring calculation, let's scale our spring model's `Stiffness` value. The effective range of the `Stiffness` parameter in the spring calculation is a little unintuitive. Scaling it by a constant value can change this range to something more intuitive for animators. In _Cloud Crashers_, we use another macro set at a value of `35.0`, which results the range close to `0 - 100`:
+Before we perform the spring calculation, let's also scale our spring model's `Stiffness` value. The effective range of the `Stiffness` parameter in the spring calculation is a little hard to work with. Scaling it by a constant value can change this range to something more intuitive for animators. In _Cloud Crashers_, we use another macro set to a value of `35.0`, which results the range close to `0 -> 100`:
 
 
 {% highlight c++ %}
@@ -565,7 +566,7 @@ void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
     // ...
     
     /* Apply an arbitrary multiplier to the spring's stiffness value. This scales viable spring stiffness values to a
-     * more intuitive range of (0 - 100) when adjusting spring model data. */
+     * more intuitive range of (0 -> 100) when adjusting spring model data. */
     const float EffectiveStiffness = MoveSwayForwardBackwardSpringModelData.Stiffness * SPRING_STIFFNESS_SCALER;
 }
 {% endhighlight %}
@@ -593,7 +594,7 @@ void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
 }
 {% endhighlight %}
 
-Now, we need to do the exact same thing for our right/left movement sway. And since we'll be performing this exact same process for _every_ additive calculation, let's actually move most of this code to a new helper function, which we'll call `UpdateFloatSpringInterp`:
+Now, we need to do the exact same thing for our right/left movement sway. And since we'll be performing this exact same process for _every_ additive calculation, it's a good idea to move most of this code to a new helper function, which we can call `UpdateFloatSpringInterp`:
 
 {% highlight c++ %}
 protected:
@@ -604,9 +605,9 @@ protected:
      * @param SpringCurrent			The current spring interpolation value.
      * @param SpringTarget			The target spring interpolation value.
      * @param SpringState			Data for the calculating spring model. Each spring model should use a unique spring
-     *								state variable.
+     *                                          state variable.
      * @param SpringData			Data used to define the behavior of the spring model.
-     * @return						The resulting spring interpolation value.
+     * @return					The resulting spring interpolation value.
      */
     float UpdateFloatSpringInterp(float SpringCurrent, float SpringTarget, FFloatSpringState& SpringState, FFloatSpringModelData& SpringData);
 {% endhighlight %}
@@ -678,8 +679,11 @@ void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
 
 Perfect! And before we move on, we can check to see if this works! All we have to do is plug our `CurrentSpringMoveForwardBackward` and `CurrentSpringMoveRightLeft` variables into our aim offset:
 
-**TODO Movement sway aim offset w/ params**
+![Spring interpolation graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-movement-sway-aim-offset-w-params-01.png){: .align-center}
 
 If we test out our animation blueprint now, we'll see our movement sway works! We can adjust our spring models' properties inside the animation blueprint to get whatever effect we want. We can even edit them during PIE and see our sway change in real time!
 
-**TODO movement sway demo with real-time spring model changes**
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/fpp-animation/fpp-anim-movement-sway-demo-with-real-time-spring-model-changes-vid.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
