@@ -220,7 +220,6 @@ Finally, we have our base pose, based on our directional movement speed _and_ ou
     Video tag not supported.
 </video>
 <br>
-<br>
 ## Additives
 
 Now things get more interesting. To add that extra level of personality to our animations, we're going to use additive poses to offset the base pose. We want to apply three different additives:
@@ -683,7 +682,4 @@ Perfect! And before we move on, we can check to see if this works! All we have t
 
 If we test out our animation blueprint now, we'll see our movement sway works! We can adjust our spring models' properties inside the animation blueprint to get whatever effect we want. We can even edit them during PIE and see our sway change in real time!
 
-<video width="100%" height="100%" muted loop controls>
-   <source src="/assets/videos/per-post/fpp-animation/fpp-anim-movement-sway-demo-with-real-time-spring-model-changes-vid.mp4" type="video/mp4">
-    Video tag not supported.
-</video>
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/BoFw96KQgQA?color=white&controls=0&modestbranding=1&mute=1&rel=0" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
