@@ -683,7 +683,7 @@ Perfect! And before we move on, we can check to see if this works! All we have t
 
 If we test out our animation blueprint now, we'll see our movement sway works! We can adjust our spring models' properties inside the animation blueprint to get whatever effect we want. We can even edit them during PIE and see our sway change in real time!
 
-<video width="100%" height="100%" muted autoplay loop>
+<video width="100%" height="100%" muted loop controls>
    <source src="/assets/videos/per-post/fpp-animation/fpp-anim-movement-sway-demo-with-real-time-spring-model-changes-vid.mp4" type="video/mp4">
     Video tag not supported.
 </video>
