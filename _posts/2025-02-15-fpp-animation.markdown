@@ -3,11 +3,14 @@ layout: single
 title: "Procedural First-Person Animation System"
 excerpt: A breakdown of the first-person animation framework used in Cloud Crashers, and guide to building a similar system.
 header:
-  teaser: /assets/images/per-post/atomicity/thumb.jpg
+  teaser: /assets/images/per-post/
 author: Meta
 ---
 
 A breakdown of the first-person animation framework used in _Cloud Crashers_, and guide to building a similar system.
+
+**_This page is still a work-in-progress!_**
+{: .notice--info}
 
 ## Introduction
 
@@ -678,7 +681,7 @@ void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
 
 Perfect! And before we move on, we can check to see if this works! All we have to do is plug our `CurrentSpringMoveForwardBackward` and `CurrentSpringMoveRightLeft` variables into our aim offset:
 
-![Spring interpolation graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-movement-sway-aim-offset-w-params-01.png){: .align-center}
+![Movement sway aim offset with parameters]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-movement-sway-aim-offset-w-params-01.png){: .align-center}
 
 If we test out our animation blueprint now, we'll see our movement sway works! We can adjust our spring models' properties inside the animation blueprint to get whatever effect we want. We can even edit them during PIE and see our sway change in real time!
 
