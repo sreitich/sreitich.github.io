@@ -122,6 +122,8 @@ If you compile this, open up an animation sequence or montage, and right-click i
 When our notify state starts, we want to spawn our actor, and when it ends, we want to destroy it. Luckily for us, the `AnimNotifyState` class has virtual functions for both of these events. Let's start with the first:
 
 {% highlight c++ %}
+// AnimNotifyState_SpawnAnimActor.h
+
 public:
 
     // Spawns the actor defined by this notify.
@@ -132,6 +134,8 @@ public:
 {: .notice--info}
 
 {% highlight c++ %}
+// AnimNotifyState_SpawnAnimActor.cpp
+
 void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
 {
     Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
@@ -428,4 +432,49 @@ void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshCo
 
 ### Destroying the Actor
 
-Before we test out our new notify, we want to make sure it gets cleaned up properly.
+Before we test out our new notify, we want to make sure it gets cleaned up properly. In this case, all we need to do is make sure our spawned actor gets destroyed when the notify ends.
+
+As before, `AnimNotifyState` has a virtual function for this event:
+
+{% highlight c++ %}
+public:
+
+	// Destroys the animation actor when the notify ends.
+	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
+{% endhighlight %}
+
+Again, make sure you're using the non-deprecated version of this function.
+{: .notice--info}
+
+Inside, we could just destroy the spawned actor immediately. But this could lead to situations where other timed events get preemptively cancelled. For example, if we played an animation on our spawned actor, and that animation triggered a particle effect, then that particle effect would disappear when the animation ends, which isn't what we'd want.
+
+Instead, we can use the `SetLifeSpan` function to tell the actor to wait a certain amount of time, and _then_ destroy itself. In the meantime, we can hide the mesh so it still looks like it's been destroyed.
+
+{% highlight c++ %}
+void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
+{
+    Super::NotifyEnd(MeshComp, Animation, EventReference);
+
+    // Destroy the animation actor, if one was spawned.
+    if (IsValid(SpawnedActor))
+    {
+        /* We let the actor stick around for a second before destroying it, but we hide its mesh. This is to let any 
+         * other timed events (e.g. a particle effect spawned by the spawned actor's animation) finish before the actor
+         * is destroyed. */
+        SpawnedActor->SetLifeSpan(1.0f);
+        SpawnedActor->ForEachComponent(false, [](UActorComponent* InComponent)
+        {
+            if (UMeshComponent* CompAsMesh = Cast<UMeshComponent>(InComponent))
+            {
+                CompAsMesh->SetHiddenInGame(true, false);
+            }
+        });
+    }
+}
+{% endhighlight %}
+
+### Final Result
+
+Now that we're properly spawning _and_ destroying an actor, our notify is ready to use!
+
+To try it out, drag the 
