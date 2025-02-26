@@ -220,3 +220,212 @@ void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshCo
 
 We check if we're in a preview world to avoid spamming error messages when we've added the notify to an animation, but haven't selected a mesh yet.
 {: .notice--info}
+
+Next, we'll spawn our new mesh actor. This will just be an empty actor with a mesh component, since that's all we need.
+
+Unreal Engine actually has built-in actor classes for this (it's what gets spawned when you drag a mesh asset into your level): `AStaticMeshActor` and `ASkeletalMeshActor`, for static and skeletal meshes, respectively.
+
+We want to support static meshes _and_ skeletal meshes. But we need to handle spawning slightly differently depending on which of these we want to spawn. That means we need different spawning code depending on whether our notify is using a static mesh or a skeletal mesh.
+
+Let's start with static meshes. If our `MeshToSpawn` is a static mesh asset, we want to spawn a `StaticMeshActor` with our notify's parameters and set its mesh to our `MeshToSpawn`.
+
+{% highlight c++ %}
+// Spawn a static mesh actor if the mesh to spawn is a static mesh.
+if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
+{
+    if (AStaticMeshActor* SpawnedActorStatic = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
+    {
+        SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
+    }
+}
+{% endhighlight %}
+
+We're using `SpawnActorDeferred` so we can finish initializing the actor before it actually gets added to the world.
+{: .notice--info}
+
+For skeletal meshes, we can do the exact same thing, but we need to spawn `SkeletalMeshActor` instead:
+
+{% highlight c++ %}
+// Spawn a static mesh actor if the mesh to spawn is a static mesh.
+if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
+{
+    if (AStaticMeshActor* SpawnedActorStatic = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
+    {
+        SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
+    }
+}
+// Spawn a skeletal mesh actor if the mesh to spawn is a skeletal mesh.
+else
+{
+    if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransforms, MeshComp->GetOwner()))
+    {
+        SpawnedActorSkeletal->GetSkeletalMeshComponent()->SetSkeletalMesh(Cast<USkeletalMesh>(MeshToSpawn));
+    }
+}
+{% endhighlight %}
+
+Remember that we want to destroy this actor later, so we should cache it in a new variable:
+
+{% highlight c++ %}
+// AnimNotifyState_SpawnAnimActor.h
+
+private:
+
+    // The actor spawned by this notify, that will be destroyed when the notify ends.
+    UPROPERTY()
+    AActor* SpawnedActor;
+{% endhighlight %}
+
+{% highlight c++ %}
+// AnimNotifyState_SpawnAnimActor.cpp
+
+// Spawn a static mesh actor if the mesh to spawn is a static mesh.
+if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
+{
+    if (AStaticMeshActor* SpawnedActorStatic = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
+    {
+        SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
+        SpawnedActor = SpawnedActorStatic;
+    }
+}
+// Spawn a skeletal mesh actor if the mesh to spawn is a skeletal mesh.
+else
+{
+    if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransforms, MeshComp->GetOwner()))
+    {
+        SpawnedActorSkeletal->GetSkeletalMeshComponent()->SetSkeletalMesh(Cast<USkeletalMesh>(MeshToSpawn));
+        SpawnedActor = SpawnedActorSkeletal;
+    }
+}
+{% endhighlight %}
+
+Once we've spawned our actor, we can configure it using our notify's parameters. We do this outside of our branches because this configuration is the same for both static and skeletal meshes, so we can avoid repeating our code.
+
+{% highlight c++ %}
+// Set up the spawned actor.
+if (ensure(SpawnedActor))
+{
+    SpawnedActor->SetActorEnableCollision(false);
+    SpawnedActor->AttachToComponent(MeshComp, FAttachmentTransformRule::KeepRelativeTransform, AttachSocket);
+    SpawnedActorStatic->FinishSpawning(SpawnTransform);
+}
+{% endhighlight %}
+
+For skeletal meshes, we also want to configure their animation (since static meshes can't play animations):
+
+{% highlight c++ %}
+// ...
+else
+{
+    if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransforms, MeshComp->GetOwner()))
+    {
+        SpawnedActorSkeletal->GetSkeletalMeshComponent()->SetSkeletalMesh(Cast<USkeletalMesh>(MeshToSpawn));
+        SpawnedActor = SpawnedActorSkeletal;
+
+        if (SpawnedActorSkeletal)
+        {
+            SpawnedActorSkeletal->GetSkeletalMeshComponent()->PlayAnimation(ActorAnimation, ActorAnimationLoops);
+        }
+    }
+}
+{% endhighlight %}
+
+Lastly, we want to apply our material overrides. This takes a bit more work, so let's make it a helper function:
+
+{% highlight c++ %}
+// AnimNotifyState_SpawnAnimActor.h
+
+private:
+
+	// Applies optional material overrides to the given mesh component.
+	void ApplyMaterialOverrides(UMeshComponent* MeshComp);
+{% endhighlight %}
+
+{% highlight c++ %}
+// AnimNotifyState_SpawnAnimActor.cpp
+
+void UAnimNotifyState_SpawnAnimActor::ApplyMaterialOverrides(UMeshComponent* MeshComp)
+{
+    if (bOverrideMaterials && IsValid(MeshComp))
+    {
+        const int32 NumOverrideMaterials = FMath::Min(OverrideMaterials.Num(), MeshComp->GetNumMaterials());
+        for (int32 OverrideIndex = 0; OverrideIndex < NumOverrideMaterials; ++OverrideIndex)
+        {
+            if (UMaterialInterface* OverrideMat = OverrideMaterials[OverrideIndex])
+            {
+                MeshComp->SetMaterial(OverrideIndex, OverrideMat);
+            }
+        }
+
+        if (OverlayMaterial)
+        {
+            MeshComp->SetOverlayMaterial(OverlayMaterial);
+        }
+    }
+}
+{% endhighlight %}
+
+Now, our final `NotifyBegin` function looks like this:
+
+{% highlight c++ %}
+void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
+{
+    Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
+
+    // Retrieve the world to spawn our actor.
+    UWorld* World = MeshComp->GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    // Make sure we have a mesh to spawn and a mesh comp to attach it to.
+    if (!MeshToSpawn || !MeshComp)
+    {
+        if (!World->IsPreviewWorld())
+        {
+            UE_LOG(LogAnimation, Error, TEXT("Attempted to spawn animation actor in animation (%s), but no mesh to spawn was specified."), *GetNameSafe(Animation));
+        }
+
+        return;
+    }
+
+    // Spawn a static mesh actor if the mesh to spawn is a static mesh.
+    if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
+    {
+        if (AStaticMeshActor* SpawnedActorStatic = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
+        {
+            SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
+            ApplyMaterialOverrides(SpawnedActorStatic->GetStaticMeshComponent());
+            SpawnedActor = SpawnedActorStatic;
+        }
+    }
+    // Spawn a skeletal mesh actor if the mesh to spawn is a skeletal mesh.
+    else
+    {
+        if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransforms, MeshComp->GetOwner()))
+        {
+            SpawnedActorSkeletal->GetSkeletalMeshComponent()->SetSkeletalMesh(Cast<USkeletalMesh>(MeshToSpawn));
+            ApplyMaterialOverrides(SpawnedActorSkeletal->GetSkeletalMeshComponent());
+            SpawnedActor = SpawnedActorSkeletal;
+        
+            if (SpawnedActorSkeletal)
+            {
+                SpawnedActorSkeletal->GetSkeletalMeshComponent()->PlayAnimation(ActorAnimation, ActorAnimationLoops);
+            }
+        }
+    }
+
+    // Set up the spawned actor.
+    if (ensure(SpawnedActor))
+    {
+        SpawnedActor->SetActorEnableCollision(false);
+        SpawnedActor->AttachToComponent(MeshComp, FAttachmentTransformRule::KeepRelativeTransform, AttachSocket);
+        SpawnedActorStatic->FinishSpawning(SpawnTransform);
+    }
+}
+{% endhighlight %}
+
+### Destroying the Actor
+
+Before we test out our new notify, we want to make sure it gets cleaned up properly.
