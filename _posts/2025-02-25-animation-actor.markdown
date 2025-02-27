@@ -566,7 +566,7 @@ Now, when we try edit our notify, we won't be able to change any animation setti
 
 ![Non-editable animation properties]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-editable.png){: .align-center}
 
-### Conclusion
+## Conclusion
 
 When working on a massive project like a video game, compartmentalization is really important. The same way we'd want to keep all our character movement-related logic inside a character movement component, we want to keep all our animation-related effects inside an animation asset. 
 
