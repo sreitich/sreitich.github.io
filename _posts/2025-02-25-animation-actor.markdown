@@ -9,10 +9,7 @@ author: Meta
 
 Learn to create an animation notify that lets you add actors to your animations.
 
-![Locomotion state machine]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-teaser.png){: .align-center}
-
-**_This page is still a work-in-progress!_**
-{: .notice--info}
+![Teaser]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-teaser.png){: .align-center}
 
 ## Introduction
 
