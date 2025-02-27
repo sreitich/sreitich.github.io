@@ -501,19 +501,18 @@ And just like that, we're spawning a cosmetic actor in our animation! We can tak
     Video tag not supported.
 </video>
 <br>
-<br>
 In _Cloud Crashers_, we use this notify **everywhere**, for both first- and third-person ability animations:
 
 <video width="100%" height="100%" muted autoplay loop>
    <source src="/assets/videos/per-post/anim-actors/anim-actors-demo-warhammer-tpp.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
 <video width="100%" height="100%" muted autoplay loop>
    <source src="/assets/videos/per-post/anim-actors/anim-actors-demo-joust-fpp.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
 <video width="100%" height="100%" muted autoplay loop>
    <source src="/assets/videos/per-post/anim-actors/anim-actors-demo-joust-tpp.mp4" type="video/mp4">
     Video tag not supported.
