@@ -179,11 +179,11 @@ protected:
     TObjectPtr<UMaterialInterface> OverlayMaterial;
     
     // Optional animation to play on the animation actor when spawned, if it's a skeletal mesh.
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AnimNotify", DisplayName = "Actor Animation to Play", Meta = (EditConditionHides = "true"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AnimNotify", DisplayName = "Actor Animation to Play")
     TObjectPtr<UAnimationAsset> ActorAnimation;
     
     // Whether the actor animation should loop.
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AnimNotify", DisplayName = "Loop Actor Animation?", Meta = (EditConditionHides = "true"))
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AnimNotify", DisplayName = "Loop Actor Animation?")
     bool ActorAnimationLoops;
 {% endhighlight %}
 
@@ -261,7 +261,7 @@ if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
 // Spawn a skeletal mesh actor if the mesh to spawn is a skeletal mesh.
 else
 {
-    if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransforms, MeshComp->GetOwner()))
+    if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
     {
         SpawnedActorSkeletal->GetSkeletalMeshComponent()->SetSkeletalMesh(Cast<USkeletalMesh>(MeshToSpawn));
     }
@@ -295,7 +295,7 @@ if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
 // Spawn a skeletal mesh actor if the mesh to spawn is a skeletal mesh.
 else
 {
-    if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransforms, MeshComp->GetOwner()))
+    if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
     {
         SpawnedActorSkeletal->GetSkeletalMeshComponent()->SetSkeletalMesh(Cast<USkeletalMesh>(MeshToSpawn));
         SpawnedActor = SpawnedActorSkeletal;
@@ -310,8 +310,8 @@ Once we've spawned our actor, we can configure it using our notify's parameters.
 if (ensure(SpawnedActor))
 {
     SpawnedActor->SetActorEnableCollision(false);
-    SpawnedActor->AttachToComponent(MeshComp, FAttachmentTransformRule::KeepRelativeTransform, AttachSocket);
-    SpawnedActorStatic->FinishSpawning(SpawnTransform);
+    SpawnedActor->AttachToComponent(MeshComp, FAttachmentTransformRules::KeepRelativeTransform, AttachSocket);
+    SpawnedActor->FinishSpawning(SpawnTransform);
 }
 {% endhighlight %}
 
@@ -321,7 +321,7 @@ For skeletal meshes, we also want to configure their animation (since static mes
 // ...
 else
 {
-    if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransforms, MeshComp->GetOwner()))
+    if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
     {
         SpawnedActorSkeletal->GetSkeletalMeshComponent()->SetSkeletalMesh(Cast<USkeletalMesh>(MeshToSpawn));
         SpawnedActor = SpawnedActorSkeletal;
@@ -407,7 +407,7 @@ void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshCo
     // Spawn a skeletal mesh actor if the mesh to spawn is a skeletal mesh.
     else
     {
-        if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransforms, MeshComp->GetOwner()))
+        if (ASkeletalMeshActor* SpawnedActorSkeletal = World->SpawnActorDeferred<ASkeletalMeshActor>(ASkeletalMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
         {
             SpawnedActorSkeletal->GetSkeletalMeshComponent()->SetSkeletalMesh(Cast<USkeletalMesh>(MeshToSpawn));
             ApplyMaterialOverrides(SpawnedActorSkeletal->GetSkeletalMeshComponent());
@@ -424,8 +424,8 @@ void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshCo
     if (ensure(SpawnedActor))
     {
         SpawnedActor->SetActorEnableCollision(false);
-        SpawnedActor->AttachToComponent(MeshComp, FAttachmentTransformRule::KeepRelativeTransform, AttachSocket);
-        SpawnedActorStatic->FinishSpawning(SpawnTransform);
+        SpawnedActor->AttachToComponent(MeshComp, FAttachmentTransformRules::KeepRelativeTransform, AttachSocket);
+        SpawnedActor->FinishSpawning(SpawnTransform);
     }
 }
 {% endhighlight %}
@@ -477,4 +477,104 @@ void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshCo
 
 Now that we're properly spawning _and_ destroying an actor, our notify is ready to use!
 
-To try it out, drag the 
+To try it out, right-click the timeline of any animation sequence or montage, hover over `Add Notify State...`, and select our new animation notify class.
+
+![Add notify state menu]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-demo-01.png){: .align-center}
+
+The notify will appear as a bar with anchors on either side. This represents the duration when the notify is active. Drag the left anchor to when you want to spawn the actor, and drag the right anchor to when you want to destroy it.
+
+![Notify duration bar]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-demo-02.png){: .align-center}
+
+You can drag the anchors to start and end of the timeline to make the actor appear for the animation's entire duration.
+{: .notice--info}
+
+Click on the notify to view its properties in the `Details` panel. From here, you can set the variables we defined in our C++ class to customize this notify's behavior.
+
+![Notify duration bar]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-demo-03.png){: .align-center}
+
+You may need to do some trial-and-error or refer to your animation file to find the desired values for `Relative Transform`. In a "real" game, weapon meshes like this would have their anchor point set such that simply attaching them to a character's `hand` or `weapon` bone would place it in the correct position, without the need for this offset.
+{: .notice--info}
+
+And just like that, we're spawning a cosmetic actor in our animation! We can take this animation a step further with some simple particle effects, and end up with a result like this:
+
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/anim-actors/anim-actors-demo-warhammer-fpp.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+In _Cloud Crashers_, we use this notify **everywhere**, for both first- and third-person ability animations:
+
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/anim-actors/anim-actors-demo-warhammer-tpp.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/anim-actors/anim-actors-demo-joust-fpp.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/anim-actors/anim-actors-demo-joust-tpp.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+### _(Optional)_ Extra QoL Features
+
+One last thing that we do in _Cloud Crashers_ is making sure that users know they can't play an animation on a static mesh actor. We do this by disabling the notify's animation properties if there isn't a skeletal mesh isn't selected.
+
+To do this, we can implement the `CanEditChange` function which is used by the editor to determine whether a property can be changed:
+
+{% highlight c++ %}
+#if WITH_EDITOR
+
+public:
+
+    // Hides animation properties if the selected mesh is not a skeletal mesh.
+    virtual bool CanEditChange(const FProperty* InProperty) const override;
+
+#endif // WITH_EDITOR
+{% endhighlight %}
+
+We wrap this function in a `WITH_EDITOR` macro because it's only used in the editor; when we package our game, we don't need this function anymore. `WITH_EDITOR` is a flag that gets set to false by the engine when compiling non-editor builds. This macro tells the compiler to ignore this function when `WITH_EDITOR` is false.
+{: .notice--info}
+
+This function gets called for every property. In our implementation file, when we're checking `ActorAnimation` and `ActorAnimationLoops`, we only want to let them be editable if our `MeshToSpawn` is a skeletal mesh. For every other property, we use the default `Super` implementation:
+
+{% highlight c++ %}
+#if WITH_EDITOR
+bool UAnimNotifyState_SpawnAnimActor::CanEditChange(const FProperty* InProperty) const
+{
+    bool bIsEditable = Super::CanEditChange(InProperty);
+
+    if (bIsEditable && InProperty)
+    {
+        const FName PropertyName = InProperty->GetFName();
+
+        /* Animation properties can't be edited unless this notify spawns a skeletal mesh (static meshes can't play
+         * animations). */
+        if (PropertyName == GET_MEMBER_NAME_CHECKED(UAnimNotifyState_SpawnAnimActor, ActorAnimation) ||
+            PropertyName == GET_MEMBER_NAME_CHECKED(UAnimNotifyState_SpawnAnimActor, ActorAnimationLoops))
+        {
+            bIsEditable = IsValid(MeshToSpawn) && MeshToSpawn->IsA(USkeletalMesh::StaticClass());
+        }
+    }
+
+    return bIsEditable;
+}
+#endif // WITH_EDITOR
+{% endhighlight %}
+
+Now, when we try edit our notify, we won't be able to change any animation settings unless our selected mesh can actually use them!
+
+![Non-editable animation properties]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-editable.png){: .align-center}
+
+### Conclusion
+
+When working on a massive project like a video game, compartmentalization is really important. The same way we'd want to keep all our character movement-related logic inside a character movement component, we want to keep all our animation-related effects inside an animation asset. 
+
+Animation notifies are an incredibly powerful tool for creating complex animations. They allow us to write powerful modular scripts, compartmentalize our animation logic, and create useful tools for our animators.
+
+Lastly, it's important to keep in mind who will be using tools like this when programming them. Even if you're the only person working on your project, it's always great to have a nicer workflow!
+
+I hope this helped or taught you something new, and thanks for reading!
