@@ -47,7 +47,7 @@ Trying to manage these actors inside our ability logic — e.g. calling `Play An
 
 Since these actors are effectively a part of the animation, we should manage them from within the animation itself. The solution for this in Unreal Engine is the `Animation Notify`: a timed event you can add to animations directly in the timeline.
 
-As of UE 5.5, Unreal doesn't have a built-in notify for spawning actors, so I'll be showing you how to create one. This notify will be able to spawn actors within an animation (we'll be spawning mesh actors, but you could modify this notify to allow any actor to be spawned). It will support both static and skeletal meshes, allow you to play animations on spawned skeletal mesh actors, and allow you to override the mesh's materials, and we'll be able to preview it in real-time in the animation editor.
+As of UE 5.5, Unreal doesn't have a built-in notify for spawning actors, so I'll show you how to make one! This notify will be able to spawn actors within an animation (we'll be spawning mesh actors, but you could modify this notify to allow any actor to be spawned). It will support both static and skeletal meshes, allow you to play animations on spawned skeletal mesh actors, allow you to override the mesh's materials, _and_ we'll be able to preview it in real-time in the animation editor.
 
 If you want to skip the tutorial and just see the code, you can find the source code for this class [here](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/AnimNotifies/AnimNotifyState_SpawnAnimationActor.h) But note that it has some features specific to _[Cloud Crashers](https://store.steampowered.com/app/2995940/Cloud_Crashers/)_ (the game I created this for), like support for first- and third-person animations.
 {: .notice--info}
@@ -58,9 +58,9 @@ If you want to skip the tutorial and just see the code, you can find the source 
 
 Animation notifies come in two flavors: `AnimNotify` and `AnimNotifyState`. The former is a simple "fire-and-forget" event that executes its code and disappears. But the latter instantiates an object that remains alive for a specified duration within its animation, maintaining a persistent state while active.
 
-We want our spawned actors to be destroyed automatically—either at the end of the animation, or at a specified time within our animation. Normal animation notifies don't maintain a state after being triggered, so they have no way to store a reference to the spawned actor to destroy it later.
+We want our spawned actors to be destroyed automatically—either at the end of the animation, or at a specified time within it. Normal animation notifies don't maintain a state after being triggered, so they have no way to store a reference to the spawned actor to destroy it later.
 
-Instead, we'll use a notify state that spawns our animation actor when it starts, and destroys the actor when it ends. Since notify states are stateful, we'll be able to cache a reference to the spawned actor at the start of the notify, so we can destroy it at the end.
+Instead, we'll use a notify state that spawns our animation actor when it starts, and destroys the actor when it ends. Since notify states are, obviously, stateful, we'll be able to cache a reference to the spawned actor at the start of the notify, so we can destroy it at the end.
 
 Let's start by creating the new animation notify class. The parent class should be `AnimNotifyState`, and we'll name it `AnimNotifyState_SpawnAnimActor`.
 
@@ -520,7 +520,9 @@ In _Cloud Crashers_, we use this notify **everywhere**, for both first- and thir
 
 ### _(Optional)_ Extra QoL Features
 
-One last thing that we do in _Cloud Crashers_ is making sure that users know they can't play an animation on a static mesh actor. We do this by disabling the notify's animation properties if there isn't a skeletal mesh isn't selected.
+#### Restricting Property Editing
+
+Another thing we do in _Cloud Crashers_ is making sure users know they can't play animations on a static mesh actor. We do this by disabling the notify's animation properties if there isn't a skeletal mesh isn't selected.
 
 To do this, we can implement the `CanEditChange` function which is used by the editor to determine whether a property can be changed:
 
@@ -568,9 +570,46 @@ Now, when we try edit our notify, we won't be able to change any animation setti
 
 ![Non-editable animation properties]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-editable.png){: .align-center}
 
+#### Notify Names
+
+One last thing we do in _Cloud Crashers_ is override the notifies' names in the editor.
+
+You may have noticed that in our animation timeline, our notifies are all displayed as "SpawnAnimActor." This isn't super descriptive—especially when we have multiple notifies in one animation.
+
+If we want our notifies to have a more helpful name, we can override the `GetNotifyName_Implementation` function, and instead of returning the name our class, we can return the name of the mesh we're spawning:
+
+{% highlight c++ %}
+// AnimNotifyState_SpawnAnimActor.h
+
+public:
+
+    // Uses the spawned mesh as this notify's name.
+    virtual FString GetNotifyName_Implementation() const override;
+{% endhighlight %}
+
+{% highlight c++ %}
+// AnimNotifyState_SpawnAnimActor.cpp
+
+FString UAnimNotifyState_SpawnAnimActor::GetNotifyName_Implementation() const
+{
+    if (MeshToSpawn)
+    {
+        return ("Spawn " + GetNameSafe(MeshToSpawn));
+    }
+    else
+    {
+        return "Spawn Animation Actor (Unset)";
+    }
+}
+{% endhighlight %}
+
+Now, our notifies show their mesh's name in the timeline!
+
+![Notify name]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-named-notify.png){: .align-center}
+
 ## Conclusion
 
-When working on a massive project like a video game, compartmentalization is really important. The same way we'd want to keep all our character movement-related logic inside a character movement component, we want to keep all our animation-related effects inside an animation asset. 
+When working on a massive project like a video game, compartmentalization is really important. The same way we'd want to keep all our character movement-related logic inside a character movement component, it's nice to keep all our animation-related effects inside an animation asset. 
 
 Animation notifies are an incredibly powerful tool for creating complex animations. They allow us to write powerful modular scripts, compartmentalize our animation logic, and create useful tools for our animators.
 
