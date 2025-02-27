@@ -3,7 +3,7 @@ layout: single
 title: "Animation Actors"
 excerpt: Learn to create an animation notify that lets you add actors to your animations.
 header:
-  teaser: /assets/images/per-post/anim-actors/anim-actors-teaser.png
+    teaser: /assets/images/per-post/anim-actors/anim-actors-teaser.png
 author: Meta
 ---
 

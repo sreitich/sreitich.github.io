@@ -151,7 +151,7 @@
 
   @include breakpoint($small) {
     float: inline-start;
-    width: span(5 of 10);
+    width: span(5 of 5);
 
     &:nth-child(2n + 1) {
       clear: both;
@@ -160,13 +160,13 @@
 
     &:nth-child(2n + 2) {
       clear: none;
-      margin-inline-start: gutter(of 10);
+      margin-inline-start: gutter(of 5);
     }
   }
 
   @include breakpoint($medium) {
     margin-inline: 0; /* override margin*/
-    width: span(3 of 12);
+    width: span(3 of 6);
 
     &:nth-child(2n + 1) {
       clear: none;
@@ -178,17 +178,17 @@
 
     &:nth-child(4n + 2) {
       clear: none;
-      margin-inline-start: gutter(1 of 12);
+      margin-inline-start: gutter(1 of 6);
     }
 
     &:nth-child(4n + 3) {
       clear: none;
-      margin-inline-start: gutter(1 of 12);
+      margin-inline-start: gutter(1 of 6);
     }
 
     &:nth-child(4n + 4) {
       clear: none;
-      margin-inline-start: gutter(1 of 12);
+      margin-inline-start: gutter(1 of 6);
     }
   }
 
@@ -225,7 +225,7 @@
     }
 
     @include breakpoint($medium) {
-      max-height: 120px;
+      max-height: 480px;
     }
   }
 }

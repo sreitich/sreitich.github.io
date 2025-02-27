@@ -3,7 +3,7 @@ layout: single
 title: "Procedural First-Person Animation System"
 excerpt: A breakdown of the first-person animation framework used in Cloud Crashers, and guide to building a similar system.
 header:
-  teaser: /assets/images/per-post/
+    teaser: /assets/images/per-post/anim-actors/anim-actors-teaser.png
 author: Meta
 ---
 
