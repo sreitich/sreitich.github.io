@@ -489,6 +489,8 @@ Click on the notify to view its properties in the `Details` panel. From here, yo
 
 ![Notify duration bar]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-demo-03.png){: .align-center}
 
+You'll notice that once you start setting these properties, you'll be able to see the animation actor appear inside the editor preview itself!
+
 You may need to do some trial-and-error or refer to your animation file to find the desired values for `Relative Transform`. In a "real" game, weapon meshes like this would have their anchor point set such that simply attaching them to a character's `hand` or `weapon` bone would place it in the correct position, without the need for this offset.
 {: .notice--info}
 
