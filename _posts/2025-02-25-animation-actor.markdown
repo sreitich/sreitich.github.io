@@ -470,7 +470,7 @@ void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshCo
 }
 {% endhighlight %}
 
-### Final Result
+## Final Result
 
 Now that we're properly spawning _and_ destroying an actor, our notify is ready to use!
 
@@ -518,9 +518,9 @@ In _Cloud Crashers_, we use this notify **everywhere**, for both first- and thir
     Video tag not supported.
 </video>
 <br>
-### _(Optional)_ Extra QoL Features
+## _(Optional)_ Extra QoL Features
 
-#### Restricting Property Editing
+### Restricting Property Editing
 
 Another thing we do in _Cloud Crashers_ is making sure users know they can't play animations on a static mesh actor. We do this by disabling the notify's animation properties if there isn't a skeletal mesh isn't selected.
 
@@ -570,7 +570,7 @@ Now, when we try edit our notify, we won't be able to change any animation setti
 
 ![Non-editable animation properties]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-editable.png){: .align-center}
 
-#### Notify Names
+### Notify Names
 
 One last thing we do in _Cloud Crashers_ is override the notifies' names in the editor.
 
