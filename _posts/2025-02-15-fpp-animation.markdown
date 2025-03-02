@@ -32,10 +32,10 @@ In this article, I'll show how to implement a flexible first-person animation sy
 
 **TODO: Final result**
 
-If you want to skip over the tutorial and just steal the code (you're completely welcome to), check out the [CharacterAnimInstanceBase](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/CharacterAnimInstanceBase.h) and [FirstPersonCharacterAnimInstance](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/FirstPersonCharacterAnimInstance.h) classes on _Cloud Crashers'_ public source code.
+If you want to skip over the tutorial (I know it's pretty long) and just steal the code, check out the [CharacterAnimInstanceBase](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/CharacterAnimInstanceBase.h) and [FirstPersonCharacterAnimInstance](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/FirstPersonCharacterAnimInstance.h) classes on _Cloud Crashers'_ public source code.
 <br>
 <br>
-As you can see, _Cloud Crashers_ actually uses two animation instance classes: a base class and a first-person subclass. This is because _Cloud Crashers_ also supports third-person, and the third-person class re-uses the data in the base animation instance class. For the sake of simplicity, in this tutorial, I've rewritten the base class and first-person class into a single class.
+You'll see that _Cloud Crashers_ actually uses two animation instance classes: a base class and a first-person subclass. This is because _Cloud Crashers_ also supports third-person, and the third-person class re-uses the data in the base animation instance class. For the sake of simplicity, in this tutorial, I've rewritten the base class and first-person class into a single class.
 {: .notice--info}
 
 ## Base Pose
@@ -263,7 +263,7 @@ Instead of creating an aim offset asset, I'm actually going to create the aim of
 
 ![Additive aim offset nodes in animation graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-aim-offsets-no-params-01.png){: .align-center}
 
-Our `Alpha` should always be 1.0, so I've unchecked `Expose as Pin` from the `Alpha` binding. I've also left the horizontal axis of the `Falling Offset` aim offset as "None" and unchecked `Expose as Pin` on its binding to hide it, since we only need one axis for this offset.
+Our `Alpha` should always be 1.0, so I've unchecked `Expose as Pin` from the `Alpha` binding. I'm also using a `Aim Offset Blend Space 1D` for the `Falling Offset`, since we only need one axis for this offset.
 {: .notice--info}
 
 Inside, each aim offset has samples evaluating a bound animation sequence at the extrema of each axis. Since we're treating our additive animations as poses, we can skip the overhead of actually playing them, and instead just evaluate the pose at their first (and only) frame (specified by the `Explicit Time` parameter). On the left, you'll also see the new variables we've created to bind our animation assets.
@@ -317,7 +317,7 @@ The problem is that our bodies don't move that mechanically. When our muscles mo
 
 ![Spring interpolation graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fpp-anim-spring-interpolation-graph-01.png){: .align-center}
 
-Well, fortunately for us, there's a mathematical model that does exactly this, and it's what a lot of first-person shooter games use to create natural-looking sways: **springs**.
+Well, fortunately for us, there's a mathematical model that does exactly this, and it's what _Overwatch_ uses to get their natural-looking sways: **springs**.
 
 ## Springs
 
@@ -460,7 +460,7 @@ struct FFloatSpringModelData
 
 ### Movement Sway
 
-Let's start with our first additive suite: movement sway. Here are the variables we'll need:
+Let's start with our first additive suite: movement sway. Here are the variables we'll need in our header:
 
 {% highlight c++ %}
 // Spring models.
@@ -554,7 +554,6 @@ You can hard-code any value for this. In _Cloud Crashers_, we use a macro called
 {% endhighlight %}
 
 Before we perform the spring calculation, let's also scale our spring model's `Stiffness` value. The effective range of the `Stiffness` parameter in the spring calculation is a little hard to work with. Scaling it by a constant value can change this range to something more intuitive for animators. In _Cloud Crashers_, we use another macro set to a value of `35.0`, which results the range close to `0 -> 100`:
-
 
 {% highlight c++ %}
 /* Universal multiplier applied to spring model stiffness. Used to scale stiffness values to a more intuitive
@@ -679,10 +678,126 @@ void UFirstPersonCharacterAnimInstance::UpdateMovementSwayData()
 }
 {% endhighlight %}
 
-Perfect! And before we move on, we can check to see if this works! All we have to do is plug our `CurrentSpringMoveForwardBackward` and `CurrentSpringMoveRightLeft` variables into our aim offset:
+Perfect! And before we move on, we can check to see if this works. All we have to do is plug our `CurrentSpringMoveForwardBackward` and `CurrentSpringMoveRightLeft` variables into our aim offset:
 
 ![Movement sway aim offset with parameters]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-movement-sway-aim-offset-w-params-01.png){: .align-center}
 
 If we test out our animation blueprint now, we'll see our movement sway works! We can adjust our spring models' properties inside the animation blueprint to get whatever effect we want. We can even edit them during PIE and see our sway change in real time!
 
 <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/BoFw96KQgQA?color=white&controls=0&modestbranding=1&mute=1&rel=0" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
+<br>
+### Aim Sway
+
+Now that our movement sway is working, implementing aim sway will be really easy, because we can use the exact same method!
+
+We'll start with another set of variables in our header file:
+
+{% highlight c++ %}
+// Spring models.
+protected:
+
+    // The spring model used to drive right/left aim sway for this animation instance.
+    UPROPERTY(EditDefaultsOnly, Category = "Spring Models|Aim Sway", DisplayName = "Right/Left Sway Spring Model")
+    FFloatSpringModelData AimSwayRightLeftSpringModelData;
+
+    // The spring model used to drive up/down aim sway for this animation instance.
+    UPROPERTY(EditDefaultsOnly, Category = "Spring Models|Aim Sway", DisplayName = "Up/Down Sway Spring Model")
+    FFloatSpringModelData AimSwayUpDownSpringModelData;
+
+// Current spring values.
+protected:
+
+    // The current spring value for the right/left aim sway spring.
+    UPROPERTY(BlueprintReadOnly, Category = "Sway Data|Aim Sway", DisplayName = "Current Aim Sway Value (Right/Left)")
+    float CurrentSpringAimRightLeft;
+
+    // The current spring value for the up/down aim sway spring.
+    UPROPERTY(BlueprintReadOnly, Category = "Sway Data|Aim Sway", DisplayName = "Current Aim Sway Value (Up/Down)")
+    float CurrentSpringAimUpDown;
+
+// Internal spring states.
+private:
+
+    // Spring state for the right/left aim sway's spring calculations.
+    FFloatSpringState SpringStateAimRightLeft;
+
+    // Spring state for the up/down aim sway's spring calculations.
+    FFloatSpringState SpringStateAimUpDown;
+{% endhighlight %}
+
+... and another function for updating our aim sway values:
+
+{% highlight c++ %}
+protected:
+
+    // Updates aim sway data using a spring model.
+    void UpdateAimSwayData();
+{% endhighlight %}
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
+{
+    // ...
+
+    UpdateAimSwayData();
+}
+{% endhighlight %}
+
+Now, all we have to do is calculate our spring values, using our aim speed this time (which we already calculated in [Calculating Aim Data](#calculating-aim-data)).
+
+To do this, we need to normalize our aim speed, which is a little tricky, because not every player looks around at the same speed.
+
+If we wanted this to be _really_ consistent, we could use the player's sensitivity value for mice, and their controller's turn-rate for gamepads. But for the sake of simplicity, we can hard-code some arbitrary value (the difference is hardly noticeable):
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::UpdateAimSwayData(float DeltaSeconds)
+{
+    const float MaxAimSpeed = 720.0f;
+    const float MaxAimSpeedUpDown = (MaxAimSpeed / 2.0f); // Halved because characters' pitch has half the range of their yaw: (-90 -> 90) vs. (0 -> 360).
+}
+{% endhighlight %}
+
+Note that we half the value for up/down sway because it has a different range of rotation.
+{: .notice--info}
+
+Now, we can perform the exact same calculation that we did for our movement sway: clamping our speed, calculating the spring target, and reusing our `UpdateFloatSpringInterp` helper to calculate the spring's new value:
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::UpdateAimSwayData()
+{
+    const float MaxAimSpeed = 720.0f;
+    const float MaxAimSpeedUpDown = (MaxAimSpeed / 2.0f); // Halved because characters' pitch has half the range of their yaw: (-90 -> 90) vs. (0 -> 360).
+    
+    // Calculate the right/left aim sway spring.
+    const float ClampedSpeedRightLeft = FMath::Clamp(AimSpeedRightLeft, -MaxAimSpeed, MaxAimSpeed);
+    const float SpringTargetRightLeft = UKismetMathLibrary::NormalizeToRange((ClampedSpeedRightLeft * AimSwayRightLeftSpringModelData.InterpSpeed), 0.0f, MaxAimSpeed);
+    
+    CurrentSpringAimRightLeft = UpdateFloatSpringInterp
+    (
+        CurrentSpringAimRightLeft,
+        SpringTargetRightLeft,
+        SpringStateAimRightLeft,
+        AimSwayRightLeftSpringModelData
+    );
+    
+    // Calculate the up/down aim sway spring.
+    const float ClampedSpeedUpDown = FMath::Clamp(AimSpeedUpDown, -MaxAimSpeedUpDown, MaxAimSpeedUpDown);
+    const float SpringTargetUpDown = UKismetMathLibrary::NormalizeToRange((ClampedSpeedUpDown * AimSwayUpDownSpringModelData.InterpSpeed), 0.0f, MaxAimSpeedUpDown);
+    
+    CurrentSpringAimUpDown = UpdateFloatSpringInterp
+    (
+        CurrentSpringAimUpDown,
+        SpringTargetUpDown,
+        SpringStateAimUpDown,
+        AimSwayUpDownSpringModelData
+    );
+}
+{% endhighlight %}
+
+Plug our spring values into our aim offset...
+
+![Aim sway aim offset with parameters]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-aim-sway-aim-offset-w-params-01.png){: .align-center}
+
+... and now we've got aim sway, too!
+
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/EwsE3nC6aXY?color=white&controls=0&modestbranding=1&mute=1&rel=0" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
