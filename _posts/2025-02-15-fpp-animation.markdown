@@ -801,3 +801,104 @@ Plug our spring values into our aim offset...
 ... and now we've got aim sway, too!
 
 <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/EwsE3nC6aXY?color=white&controls=0&modestbranding=1&mute=1&rel=0" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
+<br>
+### Falling Offset
+
+Last, but not least, we've got our falling offset—which we're using to create a procedural jump animation, in case you forgot.
+
+To do that, all we need to do is repeat this process one more time. Fortunately, we only need to calculate one spring this time; our other additives had two axes (forward/backward and right/left, and right/leftt and up/down), but our falling offset just has one: our vertical velocity.
+
+{% highlight c++ %}
+One last time, let's declare our variables:
+
+	// Falling offset.
+
+protected:
+
+    // The spring model used to drive the falling (vertical movement) offset for this animation instance.
+    UPROPERTY(EditDefaultsOnly, Category = "Spring Models|Falling Offset", DisplayName = "Falling Offset Spring Model")
+    FFloatSpringModelData FallingOffsetSpringModelData;
+
+protected:
+
+    // The current spring value of the falling offset spring.
+    UPROPERTY(BlueprintReadOnly, Category = "Sway Data|Falling Offset", DisplayName = "Current Falling Offset Value")
+    float CurrentSpringFalling;
+
+private:
+
+    // Spring state for the falling offset's spring calculations.
+    FFloatSpringState SpringStateFalling;
+{% endhighlight %}
+
+And let's create one last function to update our falling offset spring:
+
+{% highlight c++ %}
+protected:
+
+    // Updates falling offset data using a spring model.
+    void UpdateFallingOffsetData();
+{% endhighlight %}
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
+{
+    // ...
+
+    UpdateFallingOffsetData();
+}
+{% endhighlight %}
+
+Thankfully, updating our last spring value is really easy. We already have our vertical velocity; all we need to do is normalize it with the velocity at which we jump, since that's the fastest we'll ever jump upwards, and it works well when falling down, too:
+
+{% highlight c++ %}
+void UFirstPersonCharacterAnimInstance::UpdateFallingOffsetData()
+{
+    // Use the owning pawn's jump velocity as the bound for the falling offset.
+    const float MaxVerticalSpeed = Cast<UCharacterMovementComponent>(TryGetPawnOwner()->GetMovementComponent())->JumpZVelocity;
+
+    // Calculate the falling offset spring.
+    float SpringTargetFalling = UKismetMathLibrary::NormalizeToRange(LocalVelocity.Z, 0.0f, MaxVerticalSpeed);
+
+    CurrentSpringFalling = UpdateFloatSpringInterp
+    (
+        CurrentSpringFalling,
+        SpringTargetFalling,
+        SpringStateFalling,
+        FallingOffsetSpringModelData
+    );
+}
+{% endhighlight %}
+
+And that's it! Now, we just have to plug this last spring into our aim offset:
+
+![Falling offset aim offset with parameters]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-falling-offset-aim-offset-with-params-01.png){: .align-center}
+
+... and our falling offset is working:
+
+**TODO: Falling offset result**
+
+## Final Result
+
+With all of our additives, we finally have our finished animation framework!
+
+**TODO: Knight result**
+
+With this system, the possibilities are endless. By simply subclassing the animation blueprint, switching out our animations, and tweaking our spring models, we can get give all of our characters their own feel and personality!
+
+**TODO: Viking result**
+
+**TODO: Soldier result**
+
+## What's Next
+
+Our animation blueprint is far from finished. Depending on your project's needs, you'll still need to add things like animation slots, left-hand IK for two-handed weapons, etc. For example, here's what the _actual_ first-person animation blueprint looks like in _Cloud Crashers_:
+
+![Final animation blueprint anim graph]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-final-animbp-01.png){: .align-center}
+
+Right-click and `"Open image in new tab"` if you actually want to see what everything here does.
+{: .notice--info}
+
+But, regardless of where you go from here, this system serves as a great foundation. We've essentially created a simple framework for driving your base locomotion animations, and whatever else your project needs—whether that's complex slot blending or procedural contextual animations—can be added on top of this system by extending or modifying it with C++ or the animation blueprint. Where you take this from here is completely up to you.
+
+I hope this article helped or taught you something new, and thanks for reading!

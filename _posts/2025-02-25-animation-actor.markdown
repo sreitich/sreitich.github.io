@@ -615,4 +615,4 @@ Animation notifies are an incredibly powerful tool for creating complex animatio
 
 Lastly, it's important to keep in mind who will be using tools like this when programming them. Even if you're the only person working on your project, it's always great to have a nicer workflow!
 
-I hope this helped or taught you something new, and thanks for reading!
+I hope this article helped or taught you something new, and thanks for reading!
