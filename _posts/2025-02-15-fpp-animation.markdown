@@ -5,16 +5,14 @@ excerpt: A breakdown of the first-person animation framework used in Cloud Crash
 header:
     teaser: /assets/images/per-post/fpp-animation/fppanim-teaser.png
 author: Meta
+last_modified_at: 2025-03-06
 ---
 
 A breakdown of the first-person animation framework used in _Cloud Crashers_, and guide to building a similar system.
 
-**_This page is still a work-in-progress!_**
-{: .notice--info}
-
 ## Introduction
 
-**TODO: Teaser**
+![Teaser]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-teaser.png){: .align-center}
 
 [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/) is a hero-based fighting game. Each playable character has a unique weapon, set of abilities, and overall aesthetic that feels distinct.
 
@@ -30,7 +28,7 @@ Even though it isn't a technical talk, Matt's high-level explanation of _Overwat
 
 In this article, I'll show how to implement a flexible first-person animation system from scratch. By the end, we'll have an extremely powerful animation blueprint which can be used to create robust animation sets like this:
 
-**TODO: Final result**
+<iframe width="560" height="315" src="https://www.youtube.com/embed/uQJQGGqoaSw?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=uQJQGGqoaSw" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 
 If you want to skip over the tutorial (I know it's pretty long) and just steal the code, check out the [CharacterAnimInstanceBase](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/CharacterAnimInstanceBase.h) and [FirstPersonCharacterAnimInstance](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/FirstPersonCharacterAnimInstance.h) classes on _Cloud Crashers'_ public source code.
 <br>
@@ -684,7 +682,7 @@ Perfect! And before we move on, we can check to see if this works. All we have t
 
 If we test out our animation blueprint now, we'll see our movement sway works! We can adjust our spring models' properties inside the animation blueprint to get whatever effect we want. We can even edit them during PIE and see our sway change in real time!
 
-<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/BoFw96KQgQA?color=white&controls=0&modestbranding=1&mute=1&rel=0" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/BoFw96KQgQA?color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=BoFw96KQgQA" frameborder="0" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 <br>
 ### Aim Sway
 
@@ -800,8 +798,13 @@ Plug our spring values into our aim offset...
 
 ... and now we've got aim sway, too!
 
-<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/EwsE3nC6aXY?color=white&controls=0&modestbranding=1&mute=1&rel=0" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
-<br>
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/fpp-animation/fpp-anim-aim-sway-demo.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+[//]: # (<iframe width="560" height="315" src="https://www.youtube.com/embed/EwsE3nC6aXY?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=EwsE3nC6aXY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>)
+[//]: # (<br>)
 ### Falling Offset
 
 Last, but not least, we've got our falling offset—which we're using to create a procedural jump animation, in case you forgot.
@@ -876,20 +879,23 @@ And that's it! Now, we just have to plug this last spring into our aim offset:
 
 ... and our falling offset is working:
 
-**TODO: Falling offset result**
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/fpp-animation/fpp-anim-falling-offset-demo-vid.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 ## Final Result
 
 With all of our additives, we finally have our finished animation framework!
 
-**TODO: Knight result**
-
+<iframe width="560" height="315" src="https://www.youtube.com/embed/VK3slsUUCHM?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=VK3slsUUCHM" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
+<br>
 With this system, the possibilities are endless. By simply subclassing the animation blueprint, switching out our animations, and tweaking our spring models, we can get give all of our characters their own feel and personality!
 
-**TODO: Viking result**
-
-**TODO: Soldier result**
-
+<iframe width="560" height="315" src="https://www.youtube.com/embed/-Qk8I9JXQNs?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=-Qk8I9JXQNs" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
+<br>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/XQkkENLIpwY?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=XQkkENLIpwY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
+<br>
 ## What's Next
 
 Our animation blueprint is far from finished. Depending on your project's needs, you'll still need to add things like animation slots, left-hand IK for two-handed weapons, etc. For example, here's what the _actual_ first-person animation blueprint looks like in _Cloud Crashers_:
