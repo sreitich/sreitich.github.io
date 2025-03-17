@@ -18,7 +18,7 @@ If you've used Unreal Engine before, you may know that there are only four diffe
 
 This is because traces, sweeps, and overlaps use a structure called `FCollisionShape`, which can only represent these four shapes. And the reason why simply has to do with performance.
 
-Important vocab! A "trace" is a raycast query that traces a line through the world. A "sweep" is a different type of query that moves a geometry object along a line. In other words, a "trace" is a trace with a line and a "sweep" is a trace with any other shape. In Unreal, this might be confusing because in the Kismet library, both of these queries are referred to as "traces." However, under the hood, these shape "traces" (e.g. `UKismetSystemLibrary::SphereTraceSingle`) are actually performing sweeps. So, really, we'll be making a "cone _sweep_" function. I just named this article "cone tracing" because that's probably what you Googled.
+Important vocab! A "trace" is a raycast query that traces a line through the world. A "sweep" is a different type of query that moves a geometry object along a line. In other words, a "trace" is a trace with a line and a "sweep" is a trace with any other shape. In Unreal, this might be confusing because in the Kismet library, both of these queries are referred to as "traces." However, under the hood, these shape "traces" (e.g. `UKismetSystemLibrary::SphereTraceSingle`) are actually performing sweeps. So, really, we'll be making a "cone _sweep_" function, but we'll still call it a trace to align with Unreal's conventions.
 {: .notice--info}
 
 Unreal Engine used to use PhysX to drive its physics simulations. In PhysX, these shapes are _primitives_ because they can be represented using pure mathematics, which makes them extremely efficient to compute compared to more complex shapes (which would require you to perform computations on individual triangles).
@@ -43,3 +43,68 @@ You can see how this initial sweep will essentially give us the same results we 
 Here's a clearer look at what our sweep actually looks like, since, in practice, the distance between each sphere is incredibly small:
 
 ![Sphere Sweep Visual 2]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-sweep-02.png){: .align-center}
+
+Let's start with a signature for our function. I usually put this in a blueprint function library named something like `UMathUtilities`:
+
+{% highlight c++ %}
+UFUNCTION(BlueprintCallable, Category = "Collision", Meta = (WorldContext = "WorldContextObject", AutoCreateRefTerm = "ActorsToIgnore", DisplayName = "Multi Cone Trace By Channel", AdvancedDisplay = "TraceColor, TraceHitColor, DrawTime", Keywords = "sweep"))
+static bool ConeTraceMulti(const UObject* WorldContextObject, const FVector Start, const FQuat Direction, float ConeHeight, float ConeHalfAngle, ETraceTypeQuery TraceChannel, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, TArray<FHitResult>& OutHits, bool bIgnoreSelf, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
+{% endhighlight %}
+
+This function performs a multi-sweep using a collision channel. You could easily refactor this into a helper function to re-use it for a `ConeTraceSingle` function, and additional functions for `TraceByProfile` and `TraceForObjects`, like Unreal does for all of its built-in trace shapes.
+{: .notice--info}
+
+The important parameters here are `ConeHeight` and `ConeHalfAngle`. I'm choosing to define the cone by these parameters because this is what designers usually care about: the range of the trace (the cone's height) and the maximum angle of the trace (which is really the cone's _half_-angle).
+
+With these parameters, we can calculate the length and the radius of a sphere sweep that encompasses our cone:
+
+{% highlight c++ %}
+bool UMathUtilities::SweepConeByChannel(
+    const UObject* WorldContextObject,
+    const FVector Start,
+    const FQuat Direction,
+    float ConeHeight,
+    float ConeHalfAngle,
+    ETraceTypeQuery TraceChannel,
+    bool bTraceComplex,
+    const TArray<AActor*>& ActorsToIgnore,
+    EDrawDebugTrace::Type DrawDebugType,
+    TArray<FHitResult>& OutHits,
+    bool bIgnoreSelf,
+    FLinearColor TraceColor = FLinearColor::Red,
+    FLinearColor TraceHitColor = FLinearColor::Green,
+    float DrawTime = 5.0f)
+{
+    ECollisionChannel CollisionChannel = UEngineTypes::ConvertToCollisionChannel(TraceChannel);
+    
+    static const FName ConeTraceMultiName
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(TEXT("ConeTraceMulti"), bTraceComplex, ActorsToIgnore, bIgnoreSelf, WorldContextObject);
+    
+    UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+    if (!World)
+    {
+        return false;
+    }
+    
+    TArray<FHitResult> TempHitResults;
+    
+    const FVector End = Start + (Direction * ConeHeight);
+    
+    const double ConeHalfAngleRad = FMath::DegreesToRadians(ConeHalfAngle);
+    const double ConeBaseRadius = ConeHeight * tan(ConeHalfAngleRad);
+    const FCollisionShape SphereSweep = FCollisionShape::MakeSphere(ConeBaseRadius);
+    
+    // Perform a sweep encompassing an imaginary cone.
+    World->SweepMultiByChannel(HitResults, Start, End, Rot, TraceChannel, SphereSweep, Params);
+}
+{% endhighlight %}
+
+The distance of the sweep should be the height of the cone, which is given. The starting location and direction are given, so we can multiply that distance by the trace's direction to get the point where the trace should end.
+
+The radius of the sweep should be the radius of the _base_ of the cone, so it can fully encompass the entire shape, but we didn't make this a parameter.
+
+A cone's height, angle, and radius are all related, so it only takes two of these values to define it. I chose to use the height and angle because it's more intuitive to define a cone by these attributes, rather than its radius. However, because these values are related, we can calculate the radius we want using the height and angle of the cone:
+
+![TODO]
+
+$${r} = {h} \cdot \tan({θ})$$
