@@ -4,13 +4,32 @@
 <!doctype html>
 {% include copyright.html %}
 <html lang="{{ site.locale | replace: "_", "-" | default: "en" }}" class="no-js">
-<head>
-    {% include head.html %}
-    {% include head/custom.html %}
-    <script type="text/javascript" id="MathJax-script" async
-            src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
-    </script>
-</head>
+
+<!--old MathJax import (does not include physics package)-->
+<!--<head>-->
+<!--    {% include head.html %}-->
+<!--    {% include head/custom.html %}-->
+<!--    <script type="text/javascript" id="MathJax-script" async-->
+<!--            src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">-->
+<!--    </script>-->
+<!--</head>-->
+
+<script type="text/javascript" async
+        src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML">
+</script>
+
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      extensions: ["[Contrib]/physics/physics.js"],
+      jax: ["input/TeX", "output/HTML-CSS"],
+      tex2jax: {
+        inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+        displayMath: [ ['$$','$$'], ["\\[","\\]"] ],
+        processEscapes: true
+      },
+      "HTML-CSS": { availableFonts: ["TeX"] }
+    });
+</script>
 
 <body class="layout--{{ page.layout | default: layout.layout }}{% if page.classes or layout.classes %}{{ page.classes | default: layout.classes | join: ' ' | prepend: ' ' }}{% endif %}" dir="{% if site.rtl %}rtl{% else %}ltr{% endif %}">
 {% include_cached skip-links.html %}
