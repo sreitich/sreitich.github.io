@@ -153,14 +153,59 @@ Fortunately, we can do both of these pretty easily with a few calculations:
 
         OutHits.Add(HitResult);
     }
+
+    return (OutHits.Num() > 0);
 }
 {% endhighlight %}
 
 To determine whether a hit is outside the angle of our cone, we can calculate the angle of the hit, and check if it's greater than our cone's angle. We can do that with the following formula:
 
-$${θ} = \arccos{(\frac{ {A} \dotproduct {B} }{\abs{A} \cdot \abs{B}})}$$
+$${θ} = \arccos{\frac{ {A} \dotproduct {B} }{\abs{A} \cdot \abs{B}}}$$
 
 It can be hard to tell in LaTeX: the top equation is a dot product; the bottom is a multiplication.
 {: .notice--info}
 
-In this equation, $${A}$$ and $${B}$$ are the 
+In this equation, $${A}$$ is the direction of the center of our cone, and $${B}$$ is the direction of the hit. This equation gives us the angle between them. Since both directions are normalized, the bottom half of the quotient equates to `1.0`, so we ignore it in our code.
+
+To determine if our hit is _beyond_ the cone, we have to check the length of our hit. If that length is greater than the length of our cone, then we know it's too far.
+
+The cone's height represents the maximum distance a hit can be at the center of the cone. But this distance changes with the angle:
+
+![Angle-based cone side length]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-side-distance.png){: .align-center}
+
+With our filtering done, our function is complete! We've performed a trace encompassing our cone, and removed any results that go outside of it.
+
+### Debugging
+
+One last thing we should do is add some optional debug draws. Fortunately, Unreal already has an arsenal of debug functions we can use. We'll put this right before our return statement:
+
+{% highlight c++ %}
+    // ...
+
+#if ENABLE_DRAW_DEBUG
+    if (DrawDebugType != EDrawDebugTrace::None)
+    {
+        // Cone trace.
+        const double ConeSlantHeight = FMath::Sqrt((ConeBaseRadius * ConeBaseRadius) + (ConeHeight * ConeHeight)); // s = sqrt(r^2 + h^2)
+        DrawDebugCone(World, Start, Direction.Vector(), ConeSlantHeight, ConeHalfAngleRad, ConeHalfAngleRad, 16, TraceColor.ToFColor(true), (DrawDebugType == EDrawDebugTrace::Persistent), DrawTime);
+        
+        // Uncomment to see the trace we're actually performing.
+        // DrawDebugSweptSphere(World, Start, End, ConeBaseRadius, TraceColor.ToFColor(true), (DrawDebugType == EDrawDebugTrace::Persistent), DrawTime);
+        
+        // Successful hits.
+        for (const FHitResult& Hit : OutHits)
+        {
+            DrawDebugLineTraceSingle(World, Hit.TraceStart, Hit.ImpactPoint, DrawDebugType, true, Hit, TraceHitColor, TraceHitColor, DrawTime);
+        }
+        
+        // Hits filtered out.
+        for (const FHitResult& Hit : TempHitResults)
+        {
+            if (!OutHits.Contains(Hit))
+            {
+                DrawDebugLineTraceSingle(World, Hit.TraceStart, Hit.ImpactPoint, DrawDebugType, false, Hit, TraceColor, TraceColor, DrawTime);
+            }
+        }
+    }
+#endif // ENABLE_DRAW_DEBUG
+{% endhighlight %}
