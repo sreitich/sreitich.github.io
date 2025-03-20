@@ -3,16 +3,16 @@ layout: single
 title: "Cone-Shaped Tracing"
 excerpt: Learn to perform cone traces in Unreal Engine!
 header:
-    teaser: /assets/images/per-post/cone-trace/cone-trace-sweep-01.png
+    teaser: /assets/images/per-post/cone-trace/cone-trace-final-complex.png
 author: Meta
-last_modified_at: 2025-03-15
+last_modified_at: 2025-03-20
 ---
 
 Learn to perform cone traces in Unreal Engine!
 
 ## Introduction
 
-![Teaser]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/#TODO){: .align-center}
+![Teaser]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-opening-teaser.png){: .align-center}
 
 If you've used Unreal Engine before, you may know that there are only four different trace shapes built into the engine: **line**, **box**, **sphere**, and **capsule**.
 
@@ -50,7 +50,7 @@ Let's start with a signature for our function. I usually put this in a blueprint
 
 {% highlight c++ %}
 UFUNCTION(BlueprintCallable, Category = "Collision", Meta = (WorldContext = "WorldContextObject", AutoCreateRefTerm = "ActorsToIgnore", DisplayName = "Multi Cone Trace By Channel", AdvancedDisplay = "TraceColor, TraceHitColor, DrawTime", Keywords = "sweep"))
-static bool ConeTraceMulti(const UObject* WorldContextObject, const FVector Start, const FRotator Direction, float ConeHeight, float ConeHalfAngle, ETraceTypeQuery TraceChannel, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, TArray<FHitResult>& OutHits, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
+static bool ConeTraceMulti(const UObject* WorldContextObject, const FVector Start, const FRotator Direction, float ConeHeight, float ConeHalfAngle, ETraceTypeQuery TraceChannel, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, TArray<FHitResult>& OutHits, FLinearColor TraceColor = FLinearColor(0.0f, 1.0f, 1.0f), FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
 {% endhighlight %}
 
 This function performs a multi-sweep using a collision channel. You could easily refactor this into a helper function to re-use it for a `ConeTraceSingle` function, and additional functions for `TraceByProfile` and `TraceForObjects`, like Unreal does for all of its built-in trace shapes.
@@ -187,7 +187,7 @@ One last thing we should do is add some optional debug draws. Fortunately, Unrea
     {
         // Cone trace.
         const double ConeSlantHeight = FMath::Sqrt((ConeBaseRadius * ConeBaseRadius) + (ConeHeight * ConeHeight)); // s = sqrt(r^2 + h^2)
-        DrawDebugCone(World, Start, Direction.Vector(), ConeSlantHeight, ConeHalfAngleRad, ConeHalfAngleRad, 16, TraceColor.ToFColor(true), (DrawDebugType == EDrawDebugTrace::Persistent), DrawTime);
+        DrawDebugCone(World, Start, Direction.Vector(), ConeSlantHeight, ConeHalfAngleRad, ConeHalfAngleRad, 32, TraceColor.ToFColor(true), (DrawDebugType == EDrawDebugTrace::Persistent), DrawTime);
         
         // Uncomment to see the trace we're actually performing.
         // DrawDebugSweptSphere(World, Start, End, ConeBaseRadius, TraceColor.ToFColor(true), (DrawDebugType == EDrawDebugTrace::Persistent), DrawTime);
@@ -198,14 +198,84 @@ One last thing we should do is add some optional debug draws. Fortunately, Unrea
             DrawDebugLineTraceSingle(World, Hit.TraceStart, Hit.ImpactPoint, DrawDebugType, true, Hit, TraceHitColor, TraceHitColor, DrawTime);
         }
         
-        // Hits filtered out.
+        // Uncomment to see hits from the sphere sweep that were filtered out.
         for (const FHitResult& Hit : TempHitResults)
         {
-            if (!OutHits.Contains(Hit))
+            if (!OutHits.ContainsByPredicate([Hit](const FHitResult& Other)
             {
-                DrawDebugLineTraceSingle(World, Hit.TraceStart, Hit.ImpactPoint, DrawDebugType, false, Hit, TraceColor, TraceColor, DrawTime);
+                return (Hit.GetActor() == Other.GetActor()) &&
+                       (Hit.ImpactPoint == Other.ImpactPoint) &&
+                       (Hit.ImpactNormal == Other.ImpactNormal);
+            }))
+            {
+                DrawDebugLineTraceSingle(World, Hit.TraceStart, Hit.ImpactPoint, DrawDebugType, false, Hit, FColor::Red, FColor::Red, DrawTime);
             }
         }
     }
 #endif // ENABLE_DRAW_DEBUG
 {% endhighlight %}
+<br>
+### Final Result
+
+With debugging enabled, we can finally see what our trace looks like:
+
+![Final result with a simple hit target]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-final-simple.png){: .align-center}
+
+Here's a more complex attack, that also shows the hits we've filtered out in red:
+
+![Final result with multiple hit and missed targets]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-final-complex.png){: .align-center}
+
+If you've followed along up to here, your results probably won't look like this; read the next section to learn why!
+{: .notice--info}
+
+## Tips for Use
+
+### Hitting Multiple Actors
+
+With a normal trace, the trace usually stops once it hits the first component that has its collision channel set to `Block`. But in most situations where you'd want to use a cone-shaped trace (e.g. swinging a large, sweeping sword), you want to hit _all_ actors within the cone.
+
+With Unreal Engine's default collision configuration, you won't be able to do this, because character meshes and collision capsules use `Block` as their default response to the `Camera` channel, and completely ignore the `Visibility` channel.
+
+If you want this trace to hit every actor in the cone, as it does in the images above, there are two (good) ways to do so:
+
+1. Change the sweep's default response to `Overlap`. This allows the sweep to pass through any objects it hits, so it doesn't become blocked by the first one. To do this, change the `SweepMultiByChannel` call to this:
+{% highlight c++ %}
+FCollisionResponseParams ResponseParams(ECR_Overlap);
+World->SweepMultiByChannel(TempHitResults, Start, End, Direction.Quaternion(), CollisionChannel, SphereSweep, Params, ResponseParams);
+{% endhighlight %}
+{:start="2"}
+2. Create a new custom trace channel to use when tracing attacks and abilities. For larger, more complex games, this is the preferred choice, since you should ideally be doing this already. It gives you greater control over which abilities can hit which parts of different actors. 
+
+    In the above images, I'm performing the trace with a channel called `AbilityTarget_Multi`. Character meshes respond to this channel with `Overlap`, while everything else ignores it. This allows the trace to hit all character meshes within the cone without being blocked.
+
+### Selecting Hits
+
+When using the above setup, you'll likely receive more than one hit for each character; this can actually be incredibly useful. 
+
+If you're, for example, performing a sword attack that has a large radius, you'll likely hit your target in multiple places with each swing. But, for the player, it would make the most sense if the hit that was _used_ aligns with their camera.
+
+For example, here's what a sword attack could look like if we simply use the _first_ hit we receive:
+
+![Misplaced hit VFX]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-fx-bad.png){: .align-center}
+
+But if we take all of our cone trace's hits, search through them, and select the one closest to our player's camera, we'll get this:
+
+![Correct hit VFX]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-fx-good.png){: .align-center}
+
+This may seem like a small change, but it has a real impact on our quality-of-life!
+
+### Trace vs. Overlap
+
+The idea of using a trace to detect any actors within the shape may sound counterintuitive; wouldn't it make more sense to perform an overlap instead?
+
+Unfortunately, it's not possible to perform a cone-shaped overlap. This is because an overlap returns an `FOverlapResult` structure, which tells us which components were overlapped, but not _where_ they were overlapped.
+
+Because overlaps don't tell us the direction or location of where they occurred, we can't determine whether an overlap would be outside the angle of the cone.
+
+Even if we _could_ perform a cone-shaped overlap, the lack of information regarding how that overlap occurred is inadequate for most use cases. For example, we would have no idea where to place the particle effects in the images above.
+
+## Conclusion
+
+Don't limit your gameplay by the tools at your disposal; you can always make your own. With a few functions, some creativity, and a little math, you can bring any idea to life.
+
+I hope this article helped you out, and gave you some ideas for devising creative solutions to gameplay going forward. At the end of the day, that's most of what gameplay programming—and programming in general—is: finding creative ways to solve problems.
