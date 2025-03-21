@@ -177,7 +177,7 @@ To calculate this distance, $${s}$$, at any angle, we can use this equation:
 
 $${s} = \frac{h}{\cos{θ}}$$
 
-If you remember high school geometry class, this is the _CAH_ in _SOH CAH TOA_:  $$\cos{(θ)} = \frac{adjacent}{hypotenuse}$$ .
+If you remember high school geometry class, this is the _CAH_ in _SOH CAH TOA_: $$\cos{(θ)} = \frac{adjacent}{hypotenuse}$$
 {: .notice--info}
 
 If the length of the trace is greater than this distance (which we named `LengthAtAngle`), we'll filter it out.
