@@ -122,7 +122,7 @@ There are two situations where this can occur...
 2. A hit is beyond the cone, within the ending cap of the sphere sweep:
     ![Space beyond cone]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-beyond-end.png){: .align-center}
 
-Fortunately, we can do both of these pretty easily with a few calculations:
+Fortunately, we can account for both of these pretty easily with a few calculations:
 
 {% highlight c++ %}
     // ...
@@ -173,7 +173,16 @@ The cone's height represents the maximum distance a hit can be at the center of 
 
 ![Angle-based cone side length]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-side-distance.png){: .align-center}
 
-With our filtering done, our function is complete! We've performed a trace encompassing our cone, and removed any results that go outside of it.
+To calculate this distance, $${s}$$, at any angle, we can use this equation:
+
+$${s} = \frac{h}{\cos{θ}}$$
+
+If you remember high school geometry class, this is the _CAH_ in _SOH CAH TOA_:  $$\cos{(θ)} = \frac{adjacent}{hypotenuse}$$ .
+{: .notice--info}
+
+If the length of the trace is greater than this distance (which we named `LengthAtAngle`), we'll filter it out.
+
+And with our filtering done, our function is complete! We've performed a trace encompassing our cone, and removed any results that go outside of it.
 
 ### Debugging
 
