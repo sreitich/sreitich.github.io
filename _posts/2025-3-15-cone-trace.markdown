@@ -16,9 +16,9 @@ Learn to perform cone traces in Unreal Engine!
 
 If you've used Unreal Engine before, you may know that there are only four different trace shapes built into the engine: **line**, **box**, **sphere**, and **capsule**.
 
-This is because traces, sweeps, and overlaps use a structure called `FCollisionShape`, which can only represent these four shapes. And the reason why simply has to do with performance.
+This is because traces, sweeps, and overlaps use a structure called `FCollisionShape`, which can only represent these four shapes. And the reason why has to do with performance.
 
-Important vocab! A "trace" is a raycast query that traces a line through the world. A "sweep" is a different type of query that moves a geometry object along a line. In other words, a "trace" is a trace with a line and a "sweep" is a trace with any other shape. In Unreal, this might be confusing because in the Kismet library, both of these queries are referred to as "traces." However, under the hood, these shape "traces" (e.g. `UKismetSystemLibrary::SphereTraceSingle`) are actually performing sweeps. So, really, we'll be making a "cone _sweep_" function, but we'll still call it a trace to align with Unreal's conventions.
+Important vocab! A "trace" is a raycast query that traces a line through the world. A "sweep" is a different type of query that moves a geometry object along a line. In other words, a "trace" is a trace with a line and a "sweep" is a trace with any other shape. In Unreal, this might be confusing because in the Kismet library, both of these queries are referred to as "traces." Under the hood, however, these shape "traces" (e.g. `UKismetSystemLibrary::SphereTraceSingle`) are actually performing sweeps. We'll really be making a "cone _sweep_" function, but we'll still call it a "trace" to align with Unreal's conventions.
 {: .notice--info}
 
 Unreal Engine used to use PhysX to drive its physics simulations. In PhysX, these shapes are _primitives_ because they can be represented using pure mathematics, which makes them extremely efficient to compute compared to more complex shapes (which would require you to perform computations on individual triangles).
@@ -28,19 +28,19 @@ Now, Unreal Engine uses Chaos, which is a proprietary physics solution. But Chao
 You'll notice this pattern in most physics engines for the same reason. Havok, for example, supports cubes, capsules, and spheres (and "quads").
 {: .notice--info}
 
-There may be times, however, when none of these shapes fit the needs of your project. So let's learn how to make a pretty common one: cones! Cones can be a really useful shape when programming gameplay: you can use them for melee attacks, flamethrowers, magical spells, or whatever other conical machinations you may have.
+There may be times, however, when none of these shapes fit the needs of your project. So let's learn how to make a pretty common one: cones! Cones can be a really useful shape when programming gameplay: you can use them for melee attacks, flamethrowers, magical spells, or whatever other conical machinations you might have.
 
 ## Solution
 
 ### Sphere Sweep
 
-To perform a sweep in the shape of a cone (without simply sweeping a cone-shaped mesh, which would be incredibly inefficient), **we'll perform a sphere sweep encompassing an "imaginary" cone, and then use some math** (yay) **to get rid of any hits that would be outside of that cone.**
+To perform a sweep in the shape of a cone (without simply sweeping a cone-shaped mesh, which would be incredibly inefficient), we'll perform a sphere sweep encompassing an "imaginary" cone, and then use some math (yay) to get rid of any hits that are inside that sphere, but would be outside of that cone.
 
 Visually, our encompassing sphere sweep will look like this.
 
 ![Sphere Sweep Visual 1]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-sweep-01.png){: .align-center}
 
-You can see how this initial sweep will essentially give us the same results we would get from performing an actual cone-shaped sweep. The only difference is that, since the sphere sweep is bigger than the cone, we'll end up with a few extraneous results that we'll get rid of after.
+You can see how this initial sweep will essentially give us all the same results we would get from performing an actual cone-shaped sweep. The only difference is that, since the sphere sweep is bigger than the cone, we'll end up with a few extraneous results that we'll get rid of after.
 
 Here's a clearer look at what our sweep actually looks like, since, in practice, the distance between each sphere is incredibly small:
 
@@ -105,7 +105,7 @@ The distance of the sweep should be the height of the cone, which is given. The 
 
 The radius of the sweep should be the radius of the _base_ of the cone, so it can fully encompass the entire shape, but we didn't make this a parameter.
 
-A cone's height, angle, and radius are all related, so it only takes two of these values to define it. I chose to use the height and angle because it's more intuitive to define a cone by these attributes, rather than its radius. However, because these values are tied together, we can calculate the radius we want using the height and angle of the cone:
+A cone's height, angle, and radius are all related, so it only takes two of these values to define it. I just mentioned that I chose to use the height and angle because it's more intuitive to define a cone by these attributes. But since these values are tied together, we can calculate the radius we want:
 
 ![Radius formula]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-radius-formula-high-def.png){: .align-center}
 
@@ -160,12 +160,12 @@ Fortunately, we can account for both of these pretty easily with a few calculati
 
 To determine whether a hit is outside the angle of our cone, we can calculate the angle of the hit, and check if it's greater than our cone's angle. We can do that with the following formula:
 
-$${θ} = \arccos{\frac{ {A} \dotproduct {B} }{\abs{A} \cdot \abs{B}}}$$
+$${θ} = \arccos{\frac{ {A} \dotproduct {B} }{\|\mathbf{A}\| \cdot \|\mathbf{B}\|}}$$
 
-It can be hard to tell in LaTeX: the top equation is a dot product; the bottom is a multiplication.
+It might be hard to tell in LaTeX: the top equation is a dot product; the bottom is a multiplication.
 {: .notice--info}
 
-In this equation, $${A}$$ is the direction of the center of our cone, and $${B}$$ is the direction of the hit. This equation gives us the angle between them. Since both directions are normalized, the bottom half of the quotient equates to `1.0`, so we ignore it in our code.
+In this equation, $${A}$$ and $${B}$$ are both normal vectors; $${A}$$ is the direction of the center of our cone, and $${B}$$ is the direction of the hit. This equation gives us the angle between them. Since both directions are normalized, the denominator equates to `1.0`, so we ignore it in our code.
 
 To determine if our hit is _beyond_ the cone, we have to check the length of our hit. If that length is greater than the length of our cone, then we know it's too far.
 
@@ -182,7 +182,7 @@ If you remember high school geometry class, this is the _CAH_ in _SOH CAH TOA_: 
 
 If the length of the trace is greater than this distance (which we named `LengthAtAngle`), we'll filter it out.
 
-And with our filtering done, our function is complete! We've performed a trace encompassing our cone, and removed any results that go outside of it.
+Now, with our filtering done, our function is complete! We've performed a trace encompassing our cone, and removed any results that go outside of it.
 
 ### Debugging
 
@@ -208,18 +208,18 @@ One last thing we should do is add some optional debug draws. Fortunately, Unrea
         }
         
         // Uncomment to see hits from the sphere sweep that were filtered out.
-        for (const FHitResult& Hit : TempHitResults)
-        {
-            if (!OutHits.ContainsByPredicate([Hit](const FHitResult& Other)
-            {
-                return (Hit.GetActor() == Other.GetActor()) &&
-                       (Hit.ImpactPoint == Other.ImpactPoint) &&
-                       (Hit.ImpactNormal == Other.ImpactNormal);
-            }))
-            {
-                DrawDebugLineTraceSingle(World, Hit.TraceStart, Hit.ImpactPoint, DrawDebugType, false, Hit, FColor::Red, FColor::Red, DrawTime);
-            }
-        }
+        // for (const FHitResult& Hit : TempHitResults)
+        // {
+        //     if (!OutHits.ContainsByPredicate([Hit](const FHitResult& Other)
+        //     {
+        //         return (Hit.GetActor() == Other.GetActor()) &&
+        //                (Hit.ImpactPoint == Other.ImpactPoint) &&
+        //                (Hit.ImpactNormal == Other.ImpactNormal);
+        //     }))
+        //     {
+        //         DrawDebugLineTraceSingle(World, Hit.TraceStart, Hit.ImpactPoint, DrawDebugType, false, Hit, FColor::Red, FColor::Red, DrawTime);
+        //     }
+        // }
     }
 #endif // ENABLE_DRAW_DEBUG
 {% endhighlight %}
@@ -230,7 +230,7 @@ With debugging enabled, we can finally see what our trace looks like:
 
 ![Final result with a simple hit target]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-final-simple.png){: .align-center}
 
-Here's a more complex attack, that also shows the hits we've filtered out in red:
+Here's a more complex usage, that also shows the hits we've filtered out in red:
 
 ![Final result with multiple hit and missed targets]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-final-complex.png){: .align-center}
 
@@ -247,21 +247,21 @@ With Unreal Engine's default collision configuration, you won't be able to do th
 
 If you want this trace to hit every actor in the cone, as it does in the images above, there are two (good) ways to do so:
 
-1. Change the sweep's default response to `Overlap`. This allows the sweep to pass through any objects it hits, so it doesn't become blocked by the first one. To do this, change the `SweepMultiByChannel` call to this:
+1. Change the sweep's default response to `Overlap`. This allows the sweep to pass through any objects it hits, so it doesn't become blocked by the first one. To do this, change the `SweepMultiByChannel` function call to this:
 {% highlight c++ %}
 FCollisionResponseParams ResponseParams(ECR_Overlap);
 World->SweepMultiByChannel(TempHitResults, Start, End, Direction.Quaternion(), CollisionChannel, SphereSweep, Params, ResponseParams);
 {% endhighlight %}
 {:start="2"}
-2. Create a new custom trace channel to use when tracing attacks and abilities. For larger, more complex games, this is the preferred choice, since you should ideally be doing this already. It gives you greater control over which abilities can hit which parts of different actors. 
+2. Create a new custom trace channel to use when tracing attacks and abilities. For larger, more complex games, this is the preferred choice, since you're probably doing this already. It gives you greater control over which abilities can hit which parts of different actors.
 
-    In the above images, I'm performing the trace with a channel called `AbilityTarget_Multi`. Character meshes respond to this channel with `Overlap`, while everything else ignores it. This allows the trace to hit all character meshes within the cone without being blocked.
+    In the above images, I'm performing the trace with a channel called `AbilityTarget_Multi`. Character meshes and collision capsules respond to this channel with `Overlap`, while everything else ignores it. This allows the trace to hit all characters within the cone without being blocked.
 
 ### Selecting Hits
 
-When using the above setup, you'll likely receive more than one hit for each character; this can actually be incredibly useful. 
+When using the above setup, you'll likely receive more than one hit for each character; this can actually be really useful! 
 
-If you're, for example, performing a sword attack that has a large radius, you'll likely hit your target in multiple places with each swing. But, for the player, it would make the most sense if the hit that was _used_ aligns with their camera.
+If, for example, you're performing a sword attack that has a large radius, you'll likely hit your target in multiple places with each swing. But, for the player, it would make the most sense if their hit aligned with their camera.
 
 For example, here's what a sword attack could look like if we simply use the _first_ hit we receive:
 
@@ -271,17 +271,17 @@ But if we take all of our cone trace's hits, search through them, and select the
 
 ![Correct hit VFX]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-fx-good.png){: .align-center}
 
-This may seem like a small change, but it has a real impact on our quality-of-life!
+This may seem like a small change, but it has a real impact on our players' quality-of-life!
 
 ### Trace vs. Overlap
 
 The idea of using a trace to detect any actors within the shape may sound counterintuitive; wouldn't it make more sense to perform an overlap instead?
 
-Unfortunately, it's not possible to perform a cone-shaped overlap. This is because an overlap returns an `FOverlapResult` structure, which tells us which components were overlapped, but not _where_ they were overlapped.
+Unfortunately, it's not possible to perform a cone-shaped overlap efficiently. This is because an overlap returns an `FOverlapResult` structure, which tells us which components were overlapped, but not _where_ they were overlapped.
 
 Because overlaps don't tell us the direction or location of where they occurred, we can't determine whether an overlap would be outside the angle of the cone.
 
-Even if we _could_ perform a cone-shaped overlap, the lack of information regarding how that overlap occurred is inadequate for most use cases. For example, we would have no idea where to place the particle effects in the images above.
+Even if we _could_ perform a cone-shaped overlap (e.g. using a cone-shaped mesh), the lack of information regarding how that overlap occurred is inadequate for most use cases. For example, we would have no idea where to place the particle effects in the images above.
 
 ## Conclusion
 
