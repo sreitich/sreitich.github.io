@@ -3,7 +3,7 @@ layout: single
 title: "Cone-Shaped Tracing"
 excerpt: Learn to perform cone traces in Unreal Engine!
 header:
-    teaser: /assets/images/per-post/cone-trace/cone-trace-final-complex.png
+    teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
 author: Meta
 last_modified_at: 2025-03-20
 ---
@@ -160,7 +160,7 @@ Fortunately, we can account for both of these pretty easily with a few calculati
 
 To determine whether a hit is outside the angle of our cone, we can calculate the angle of the hit, and check if it's greater than our cone's angle. We can do that with the following formula:
 
-$${θ} = \arccos{\frac{ {A} \dotproduct {B} }{\|\mathbf{A}\| \cdot \|\mathbf{B}\|}}$$
+$${θ} = \arccos{\frac{ {A} \dotproduct {B} }{\|{A}\| \cdot \|{B}\|}}$$
 
 It might be hard to tell in LaTeX: the top equation is a dot product; the bottom is a multiplication.
 {: .notice--info}
