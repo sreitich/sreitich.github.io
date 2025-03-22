@@ -16,25 +16,43 @@ Learn to perform cone traces in Unreal Engine!
 
 If you've used Unreal Engine before, you may know that there are only four different trace shapes built into the engine: **line**, **box**, **sphere**, and **capsule**.
 
-This is because traces, sweeps, and overlaps use a structure called `FCollisionShape`, which can only represent these four shapes. And the reason why has to do with performance.
+This is because traces, sweeps, and overlaps use a structure called `FCollisionShape`, which can only represent these four shapes. The reason why is tied to Unreal's physics engine.
 
 Important vocab! A "trace" is a raycast query that traces a line through the world. A "sweep" is a different type of query that moves a geometry object along a line. In other words, a "trace" is a trace with a line and a "sweep" is a trace with any other shape. In Unreal, this might be confusing because in the Kismet library, both of these queries are referred to as "traces." Under the hood, however, these shape "traces" (e.g. `UKismetSystemLibrary::SphereTraceSingle`) are actually performing sweeps. We'll really be making a "cone _sweep_" function, but we'll still call it a "trace" to align with Unreal's conventions.
 {: .notice--info}
 
-Unreal Engine used to use PhysX to drive its physics simulations. In PhysX, these shapes are _primitives_ because they can be represented using pure mathematics, which makes them extremely efficient to compute compared to more complex shapes (which would require you to perform computations on individual triangles).
+PhysX (the physics engine used by Unreal until UE5), Chaos (Unreal's current proprietary physics engine), and other physics engines support a collection of _primitive_ geometry shapes. In both PhysX and Chaos, these are boxes, spheres, and capsules (PhysX also has planes).
 
-Now, Unreal Engine uses Chaos, which is a proprietary physics solution. But Chaos still uses these same shapes as primitives for same reason PhysX does.
+Primitives are great because they can be represented with simple mathematics, and each have simple equations for testing intersections between them, raycasting against them, and sweeping them against each other.
 
-You'll notice this pattern in most physics engines for the same reason. Havok, for example, supports cubes, capsules, and spheres (and "quads").
+This means that primitives are extremely efficient to compute compared to more complex shapes, which require more effort to process their vertices and triangles.
+
+Even shapes that _can_ be defined mathematically are much more computationally expensive. For example, you can test if two spheres are overlapping simply by comparing their distance and radii. But testing if two cones are overlapping is much more complex.
+
+Additionally, a combination of boxes, spheres, and capsules can simulate just about any real-world object accurately enough for most use-cases: character collision is usually done with a single capsule; character ragdolls are usually a collection of capsules and spheres encompassing each limb; a cylinder can be simulated by intersecting a capsule with a box; etc.
+
+When we _do_ need more complex geometry, physics engines usually allow us to define our own geometry shapes as **meshes**, such as a **convex mesh**, by defining a collection of vertices, triangles, and/or faces that define the mesh, and then cooking that information into data that can be used to perform collision detection. But, again, this is more expensive than using primitive shapes.
+
+You can actually have Unreal Engine do this for you, without having to manually define this data.
 {: .notice--info}
 
-There may be times, however, when none of these shapes fit the needs of your project. So let's learn how to make a pretty common one: cones! Cones can be a really useful shape when programming gameplay: you can use them for melee attacks, flamethrowers, magical spells, or whatever other conical machinations you might have.
+For all of these reasons, these three primitives are the only shapes supported by `FCollisionShape` (in addition to a simple raycast/line). But there may be times when none of these primitive shapes fits the needs of your project!
+
+We can't extend `FCollisionShape`, nor can we really perform queries with a convex mesh (they're typically just used for physics assets). For complex shapes, our only real option is creating a mesh in the shape we want, spawning it in the world, making it invisible, and trying to detect what actors it overlaps.
+
+Not only is this comparatively _really_ expensive, but it can also be inaccurate if our mesh doesn't have enough vertices—not to mention: overlaps (`FOverlapResult`s) don't provide nearly as much information as collision queries (`FHitResult`s) do.
+
+I mentioned earlier, however, that our primitive boxes, spheres, and capsules can be extremely versatile; there are actually a _huge_ number of shapes that we can simulate just by using these primitives and a little math.
+
+To see how, let's learn how to make a pretty common shape: a cone! Cones can be an incredibly useful shape when programming gameplay: you can use them for melee attacks, flamethrowers, magical spells, or whatever other conical machinations you might have.
+
+In this article, we'll make a simple function to perform a cone-shaped sweep that is computationally efficient, accurate, and provides better data than a simple mesh overlap could.
 
 ## Solution
 
 ### Sphere Sweep
 
-To perform a sweep in the shape of a cone (without simply sweeping a cone-shaped mesh, which would be incredibly inefficient), we'll perform a sphere sweep encompassing an "imaginary" cone, and then use some math (yay) to get rid of any hits that are inside that sphere, but would be outside of that cone.
+To perform a sweep in the shape of a cone, we'll perform a sphere sweep encompassing an "imaginary" cone, and then use math to get rid of any hits that are inside that sphere, but would be outside of that cone.
 
 Visually, our encompassing sphere sweep will look like this.
 
@@ -277,14 +295,14 @@ This may seem like a small change, but it has a real impact on our players' qual
 
 The idea of using a trace to detect any actors within the shape may sound counterintuitive; wouldn't it make more sense to perform an overlap instead?
 
-Unfortunately, it's not possible to perform a cone-shaped overlap efficiently. This is because an overlap returns an `FOverlapResult` structure, which tells us which components were overlapped, but not _where_ they were overlapped.
+Unfortunately, it's not possible to perform a cone-shaped overlap efficiently. This is because an overlap (i.e. if we did a capsule overlap instead of a sphere sweep) returns an `FOverlapResult` structure, which tells us which components were overlapped, but not _where_ they were overlapped.
 
 Because overlaps don't tell us the direction or location of where they occurred, we can't determine whether an overlap would be outside the angle of the cone.
 
-Even if we _could_ perform a cone-shaped overlap (e.g. using a cone-shaped mesh), the lack of information regarding how that overlap occurred is inadequate for most use cases. For example, we would have no idea where to place the particle effects in the images above.
+Even if we _could_ perform a cone-shaped overlap (e.g. defining our own convex mesh geometry or simply using a cone-shaped mesh), the lack of information regarding how that overlap occurred is inadequate for most use cases. For example, we would have no idea where to place the particle effects in the images above.
 
 ## Conclusion
 
-Don't limit your gameplay by the tools at your disposal; you can always make your own. With a few functions, some creativity, and a little math, you can bring any idea to life.
+Don't let your gameplay design be limited by the tools at your disposal, when you can always make your own. With a little creativity (and math), you can bring any idea to life.
 
-I hope this article helped you out, and gave you some ideas for devising creative solutions to gameplay going forward. At the end of the day, that's most of what gameplay programming—and programming in general—is: finding creative ways to solve problems.
+I hope this article helped you out, showed you how you can simulate different query shapes, and gave you some ideas for devising creative solutions to gameplay going forward.
