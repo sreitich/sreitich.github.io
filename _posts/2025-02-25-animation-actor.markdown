@@ -228,7 +228,7 @@ Unreal Engine actually has built-in actor classes for this (it's what gets spawn
 
 We want to support static meshes _and_ skeletal meshes. But we need to handle spawning slightly differently depending on which of these we want to spawn. That means we need different spawning code depending on whether our notify is using a static mesh or a skeletal mesh.
 
-Let's start with static meshes. If our `MeshToSpawn` is a static mesh asset, we want to spawn a `StaticMeshActor` with our notify's parameters and set its mesh to our `MeshToSpawn`.
+Let's start with static meshes. If our `MeshToSpawn` is a static mesh asset, we want to spawn a `StaticMeshActor` with our notify's parameters and set its mesh to our `MeshToSpawn`. We also need to initialize its mobility, so we can optionally attach it later.
 
 {% highlight c++ %}
 // Spawn a static mesh actor if the mesh to spawn is a static mesh.
@@ -237,6 +237,7 @@ if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
     if (AStaticMeshActor* SpawnedActorStatic = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
     {
         SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
+        SpawnedActorStatic->SetMobility(EComponentMobility::Type::Movable);
     }
 }
 {% endhighlight %}
@@ -253,6 +254,7 @@ if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
     if (AStaticMeshActor* SpawnedActorStatic = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
     {
         SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
+        SpawnedActorStatic->SetMobility(EComponentMobility::Type::Movable);
     }
 }
 // Spawn a skeletal mesh actor if the mesh to spawn is a skeletal mesh.
@@ -286,6 +288,7 @@ if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
     if (AStaticMeshActor* SpawnedActorStatic = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
     {
         SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
+        SpawnedActorStatic->SetMobility(EComponentMobility::Type::Movable);
         SpawnedActor = SpawnedActorStatic;
     }
 }
@@ -397,6 +400,7 @@ void UAnimNotifyState_SpawnAnimActor::NotifyBegin(USkeletalMeshComponent* MeshCo
         if (AStaticMeshActor* SpawnedActorStatic = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
         {
             SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
+            SpawnedActorStatic->SetMobility(EComponentMobility::Type::Movable);
             ApplyMaterialOverrides(SpawnedActorStatic->GetStaticMeshComponent());
             SpawnedActor = SpawnedActorStatic;
         }
