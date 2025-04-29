@@ -5,6 +5,7 @@ excerpt: Learn to create an animation notify that lets you add actors to your an
 header:
     teaser: /assets/images/per-post/anim-actors/anim-actors-teaser.png
 author: Meta
+last_modified_at: 2025-04-29
 ---
 
 Learn to create an animation notify that lets you add actors to your animations.
@@ -236,8 +237,8 @@ if (MeshToSpawn->IsA(UStaticMesh::StaticClass()))
 {
     if (AStaticMeshActor* SpawnedActorStatic = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnTransform, MeshComp->GetOwner()))
     {
-        SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
         SpawnedActorStatic->SetMobility(EComponentMobility::Type::Movable);
+        SpawnedActorStatic->GetStaticMeshComponent()->SetStaticMesh(Cast<UStaticMesh>(MeshToSpawn));
     }
 }
 {% endhighlight %}
@@ -276,7 +277,7 @@ private:
 
     // The actor spawned by this notify, that will be destroyed when the notify ends.
     UPROPERTY()
-    AActor* SpawnedActor;
+    TObjectPtr<AActor> SpawnedActor;
 {% endhighlight %}
 
 {% highlight c++ %}
