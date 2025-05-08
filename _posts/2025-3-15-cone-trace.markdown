@@ -1,7 +1,7 @@
 ---
 layout: single
 title: "Cone-Shaped Tracing"
-excerpt: Learn to perform cone traces in Unreal Engine!
+excerpt: Learn to perform cone traces in Unreal Engine.
 header:
     teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
 author: Meta
