@@ -8,7 +8,7 @@ author: Meta
 last_modified_at: 2025-03-20
 ---
 
-Learn to perform cone traces in Unreal Engine!
+Learn to perform cone traces in Unreal Engine.
 
 ## Introduction
 

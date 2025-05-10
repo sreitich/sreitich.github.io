@@ -1,45 +1,73 @@
 ---
 layout: single
 title: "Communicating Client-Side Data with GAS"
-excerpt: How to send client-side data to the server when scripting abilities with Unreal Engine's Gameplay Abilities System.
+excerpt: How to script gameplay abilities to use data only available on clients, or to use a client-side value instead of the server's with GAS.
 header:
     teaser: /assets/images/per-post/gas-communicating-client-info/teaser.png
 author: Meta
-last_modified_at: 2025-05-07
+last_modified_at: 2025-05-10
 ---
 
-This is a short tutorial showing the correct way to communicate client data to the server when scripting gameplay abilities. This is a problem I see _a lot_ of people encounter when working with GAS, and I can't find anything online that explains how to properly do it.
+This is a short tutorial explaining how to script gameplay abilities when you need data that's only available on clients, or when you want to use the client-side version of data instead of the server's. I see _a lot_ of people encounter this problem when working with GAS, and I can't find anything online that explains how to properly do it.
 
-This setup can also help to mitigate latency issues (e.g. rubber-banding) when using client-driven data (input vector, aim direction, etc.).
+This is a long-winded post, since I want to clearly explain all the networking technicalities. TL;DR version is available on [UE Learning](https://dev.epicgames.com/community/learning/tutorials/Gj56/unreal-engine-using-client-side-data-and-mitigating-latency-with-the-gameplay-abilities-system).
+{: .notice--info}
 
 ## The Problem
 
 ![Teaser]({{ '/' | absolute_url }}/assets/images/per-post/gas-communicating-client-info/teaser.png){: .align-center}
 
-When making abilities for networked games with Unreal Engine's Gameplay Abilities System, data that needs to be calculated at runtime (e.g. the direction in which a bullet is fired) is usually calculated on both the local client and the server. The server's value will be the "official" value used, and if the client's value is different, the server will update them with the correct value. This is the basic idea behind client-side prediction (the client calculating its own value as a "prediction") and server rollback (the server correcting the client's prediction if it was wrong).
+### A Short Explanation of Client-Side Prediction
 
-However, there are times when we actually want to use the _client's_ value instead of the server's. This can occur when the value either **doesn't exist** on the server, or when we trust the client to provide a more accurate value than the server can.
+Unreal Engine's Gameplay Abilities System has built-in client-side prediction. This means that when you activate an ability (whose net execution policy is `Local Predicted`), it will be executed on both the local client and the server. The client will "predict" what will happen (so the game feels more responsive and accurate to the player), but the server will determine what _actually_ happens.
 
-The most common example of this that I see is when people **want to create some kind of "dash" ability that moves the player in the direction of their input**. E.g., if the player is holding "A" (on a keyboard), they should dash left. This is an incredibly common ability in games: Tracer's "Blink" in _Overwatch_, Jett's "Tailwind" in _Valorant_, directional sliding in _Call of Duty_, etc.
+An issue arises when the client predicts something different from the server. For example, if the client tried to activate an ability, but the server didn't let them (maybe they got stunned), then the server has to send a message to the client to "correct" them. This is done by rewinding the client's missed prediction (e.g. undoing any logic their rejected ability performed), and resimulating their game to align with the server's game (e.g. putting them into the "stunned" state). This is called "server rollback."
+
+This is a very rudimentary explanation of a very complex topic, since I'm hoping you're familiar with it already if you're using GAS for a multiplayer game.
+{: .notice--info}
+
+### Client vs. Server Data
+
+GAS is server-authoritative by default. When executing logic inside abilities, if the local client and server perform different actions, GAS will always treat the server as the "correct" one. This is usually what we want to do (players are notoriously untrustworthy).
+
+There are times, however, when we actually want to use the _client's_ version instead. There are two common situations when this happens.
+
+#### 1. The Data Only Exists on the Client
+
+Sometimes, you want to use some data in a gameplay ability, but it doesn't exist on the server.
+
+The most common example of this that I see is when people want to create some kind of "Dash" ability that moves the player in the direction of their input. E.g., if the player is holding down `A` on their keyboard, they should dash left. This is an incredibly common ability in games: Tracer's "Blink" in _Overwatch_, Jett's "Tailwind" in _Valorant_, directional sliding in _Call of Duty_, etc.
 
 <video width="100%" height="100%" muted autoplay loop>
    <source src="/assets/videos/per-post/gas-communicating-client-info/jett-dash-vid.mp4" type="video/mp4">
     Video tag not supported.
-</video>
-<br>
-
+</video><br>
 But in Unreal Engine, you'll very quickly encounter a problem: the variable that tracks the player's directional input, `APawn::LastControlInputVector`, isn't replicated; it only exists on the client. So if you try to set up an ability like so:
 
 ![Dash ability using "GetLastMovementInputVector" on the server]({{ '/' | absolute_url }}/assets/images/per-post/gas-communicating-client-info/intuitive-dash-setup.png){: .align-center}
 
-... it won't work. The client will correctly predict the movement, but the server will rubber-band us back, because calling `GetLastMovementInputVector` on the server returns `(0, 0, 0)`. So instead, we want the server to use our _client's_ value.
+... it won't work. The client will correctly predict the movement, but the server will rubber-band us back, because calling `GetLastMovementInputVector` on the server returns `(0, 0, 0)`.
 
-This is actually a pretty good example of the other potential situation I mentioned, too: even if this variable _was_ tracked on the server, we'd still want to use the client's value. This value is determined by the keys that the client is currently pressing. If we were continuously sending that value to the server, the server's version wouldn't be as accurate because of latency, so we'd still want to use the client's value.
+#### 2. The Client's Data is More Accurate
+
+Another common situation where we want to use the client's data is when it's more accurate than the server's.
+
+If we, for example, want to fire a weapon in the direction the player is aiming, their version of `GetPlayerViewPoint` is going to be more accurate than the server's, since they're the one that's actually reading the mouse data to know where the player is aiming.
+
+This is true for any data that's client-driven (basically anything involving input). Since this data is being calculated on the client and continuously replicated to the server (which is the opposite of how most replicated data is treated in server-authoritative games), the server's version may be behind—especially at high latencies, when it takes a long time for the client to update the server.
+
+It's important to note that when you do this, you're _trusting_ the client. The method I'm going to show you is very simple, doesn't involve any kind of validation, and should only be used when clients can _not_ take advantage of manipulating the data they send.
+<br>
+<br>
+For example, when scripting a "Dash" ability, there's little risk to trusting the client when determining the direction they should dash. But trusting the direction in which a client fires their weapon is a lot more dangerous.
+<br>
+<br>
+For these kinds of situations, you should use a more robust prediction system, like GAS's [target actors](https://github.com/tranek/GASDocumentation?tab=readme-ov-file#4112-target-actors). Alternatively, see how [Lyra implements its own method for predicting weapon traces](https://github.com/EpicGames/UnrealEngine/blob/ue5-main/Samples/Games/Lyra/Source/LyraGame/Weapons/LyraGameplayAbility_RangedWeapon.h) with GAS.
 {: .notice--info}
 
 ## The Solution
 
-Luckily, the solution to this is really simple. All we need to do is calculate the value on the client, then send that value to the server with an RPC. Here's what that looks like for the example I just explained:
+The solution to both of these situations is actually pretty simple. All we need to do is calculate the value on the client, then send that value to the server with an RPC. Here's what that looks like for the "Dash" example I mentioned earlier:
 
 ![Dash ability using a "Send Info" server RPC]({{ '/' | absolute_url }}/assets/images/per-post/gas-communicating-client-info/final-setup.png){: .align-center}
 
@@ -76,10 +104,7 @@ When the player activates an ability, they send an RPC to the server saying, "pl
 It does take time to activate the ability and fire the second RPC, but that time is so short (nanoseconds) that both RPCs will almost _always_ be fired in the same tick.
 <br>
 <br>
-This means that both RPCs are likely reaching the server at the same time (depending on how Unreal sends the packets). So, even though we're telling the server to wait for the second RPC, there won't be any delay, since that RPC is arriving at the exact same time as the first RPC (which would have started the ability if we hadn't told the server to wait).
-<br>
-<br>
-Lastly, even if the RPCs somehow don't arrive at the _exact_ same time, they're sent so close together that any delay between them is still negligible compared to the amount of time it takes for them to travel. E.g., if it takes 30ms for each RPC to reach the server, it really won't make a difference if the second one arrives one or two milliseconds later.
+This means that both RPCs are likely reaching the server at the same time (depending on how Unreal sends the packets). So, even though we're telling the server to wait for the second RPC, there won't be any delay, since that RPC is arriving at the exact same time as the first RPC.
 {: .notice--info}
 
 ### Listen Server Activation with Client and Server Execution
@@ -122,12 +147,10 @@ If we wanted to know the direction of the player's input, we could just use thei
 
 However, this is more of a hack than a solution; there's a lot of ways this setup could break. For example, if we had _any_ kind of knockback system in our game (a lot of multiplayer games do), this setup won't work, since the player's acceleration will instead be `InputVector + CurrentKnockback`.
 
-Even we _could_ guarantee that our acceleration always matched our input vector, this solution—using the server's value—would still be suboptimal, since the server's version of a client-driven value won't be as accurate (as explained at the start of this post).
+Even we _could_ guarantee that our acceleration always matched our input vector, this solution—using the server's value—would still be suboptimal, since the server's version of a client-driven value won't be as accurate (as explained earlier in this post).
 
 ## Conclusion
 
 Gameplay abilities hook into Unreal's replication system, so this setup works for _any_ data that can be replicated. For example, in the _Lyra_ project, Epic uses this exact script to replicate which animation montage asset should be used for their "Dash" ability.
 
-Lastly, I want to note that this script is a great way to mitigate latency issues when using client-driven values in abilities. For example, if you have an ability that moves the player in the direction they're looking, you'll likely get a lot of rubber-banding. The player's `ControlRotation` is known on the server, so the traditional "predict with the client's value, use the server's value" ability script will work. But, because of the latency to the server that I explained earlier, the server's `ControlRotation` won't match the client's, resulting in rubber-banding when the client uses its own value in its prediction. Sending the client's `ControlRotation` to the server instead will mitigate this issue and prevent rubber-banding.
-
-We typically frown upon "trusting" a client's data. If we were using their aim direction to, for example, fire a weapon, we usually _would_ want to use the server's value. This mitigates cheating and, importantly, doesn't cause any hugely noticeable synchronization issues, like rubber-banding, since we're just correcting the direction of a line trace, rather than moving the player back in time. But when we're simply choosing the direction in which an ability should move the player, we're more concerned with making the ability responsive and accurate for the player than preventing cheating. But, whether you use the server's value or the client's value is ultimately up to the situation, your goals, and your constraints.
+Lastly, I want to note that this script is a great way to mitigate latency issues when using client-driven values in abilities. For example, if you have an ability that moves the player in the direction they're looking, you'll get a lot of rubber-banding at higher latencies. The player's `ControlRotation` is known on the server, so the traditional "predict with the client's value, use the server's value" ability script will work. But, because of the latency to the server that I explained earlier, the server's `ControlRotation` may not match the client's, resulting in rubber-banding when the client uses its own value in its prediction. Sending the client's `ControlRotation` to the server instead will mitigate this issue and prevent rubber-banding.
