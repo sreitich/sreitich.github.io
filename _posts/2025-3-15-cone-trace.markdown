@@ -5,10 +5,13 @@ excerpt: Learn to perform cone traces in Unreal Engine.
 header:
     teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
 author: Meta
-last_modified_at: 2025-03-20
+last_modified_at: 2025-05-11
 ---
 
 Learn to perform cone traces in Unreal Engine.
+
+This is an in-depth explanation of and walkthrough to creating this function. If you just want the code, it can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/pBv0/how-to-perform-cone-shaped-traces-in-unreal-engine).
+{: .notice--info}
 
 ## Introduction
 

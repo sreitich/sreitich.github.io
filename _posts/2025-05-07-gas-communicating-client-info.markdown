@@ -5,12 +5,12 @@ excerpt: How to script gameplay abilities to use data only available on clients,
 header:
     teaser: /assets/images/per-post/gas-communicating-client-info/teaser.png
 author: Meta
-last_modified_at: 2025-05-10
+last_modified_at: 2025-05-11
 ---
 
 This is a short tutorial explaining how to script gameplay abilities when you need data that's only available on clients, or when you want to use the client-side version of data instead of the server's. I see _a lot_ of people encounter this problem when working with GAS, and I can't find anything online that explains how to properly do it.
 
-This is a long-winded post, since I want to clearly explain all the networking technicalities. TL;DR version is available on [UE Learning](https://dev.epicgames.com/community/learning/tutorials/Gj56/unreal-engine-using-client-side-data-and-mitigating-latency-with-the-gameplay-abilities-system).
+This is an in-depth explanation of this script and its networking technicalities. If you just want the script and a summary, it can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/Gj56/unreal-engine-using-client-side-data-and-mitigating-latency-with-the-gameplay-abilities-system).
 {: .notice--info}
 
 ## The Problem

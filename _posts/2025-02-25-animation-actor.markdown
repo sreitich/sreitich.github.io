@@ -5,10 +5,13 @@ excerpt: Learn to create an animation notify that lets you add actors to your an
 header:
     teaser: /assets/images/per-post/anim-actors/anim-actors-teaser.png
 author: Meta
-last_modified_at: 2025-04-29
+last_modified_at: 2025-05-11
 ---
 
 Learn to create an animation notify that lets you add actors to your animations.
+
+This is an in-depth walkthrough to creating this class. If you just want the code, it can be found on Unreal Engine's Learning site.
+{: .notice--info}
 
 ![Teaser]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-teaser.png){: .align-center}
 

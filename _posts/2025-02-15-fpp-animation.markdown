@@ -1,39 +1,39 @@
 ---
 layout: single
 title: "Procedural First-Person Animation System"
-excerpt: A breakdown of the first-person animation framework used in Cloud Crashers, and guide to building a similar system.
+excerpt: A walkthrough to creating a robust, procedural first-person animation framework, inspired by games like Overwatch.
 header:
     teaser: /assets/images/per-post/fpp-animation/fppanim-teaser.png
 author: Meta
-last_modified_at: 2025-03-06
+last_modified_at: 2025-03-11
 ---
 
-A breakdown of the first-person animation framework used in _Cloud Crashers_, and guide to building a similar system.
+A walkthrough to creating a robust, procedural first-person animation framework, inspired by games like Overwatch.
+
+This is an in-depth walkthrough to creating this animation system. If you just want the code, it can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/MZLW/unreal-engine-creating-a-procedural-first-person-animation-system). But note that this tutorial also shows how to set up the animation blueprint, which isn't included on the UE Learning post.
+{: .notice--info}
 
 ## Introduction
 
 ![Teaser]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-teaser.png){: .align-center}
 
-[_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/) is a hero-based fighting game. Each playable character has a unique weapon, set of abilities, and overall aesthetic that feels distinct.
+I'm currently working on a hero-based fighting game called [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/). In this game, each playable character has a unique weapon, set of abilities, and overall aesthetic that feels distinct.
 
-When designing the game's first-person animation system, we needed a robust framework that could streamline building large numbers of complex animation sets. But we also wanted a way to make each character feel unique, with their own sense of personality.
+When designing the first-person animation system, I needed a robust framework that could streamline building large numbers of complex animation sets (since I'm animating everything myself). But I also wanted a way to make each character feel unique, with their own sense of personality.
 
-As I was researching solutions for animation systems, I came across this brilliant GDC talk by Blizzard Entertainment's Matt Boehm:
+As I was researching solutions for animation frameworks, I came across this brilliant GDC talk by Blizzard Entertainment's Matt Boehm:
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/7t0hLZd_8Z4?si=M6_tnPrCOSfHf0jU&amp;start=1192" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 <br>
 In this presentation, Matt breaks down how _Overwatch_ uses animation layers, additives, and spring models—among other tricks—to convey each hero's unique personality through procedural first-person animations.
 
-Even though it isn't a technical talk, Matt's high-level explanation of _Overwatch's_ animation framework provided great insights and inspiration for building a similar system for _Cloud Crashers_ in Unreal Engine.
+This isn't a technical talk (nor does _Overwatch_ use Unreal Engine), but it gave me some insights on how to use these techniques to build a similar system in Unreal Engine.
 
 In this article, I'll show how to implement a flexible first-person animation system from scratch. By the end, we'll have an extremely powerful animation blueprint which can be used to create robust animation sets like this:
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/uQJQGGqoaSw?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=uQJQGGqoaSw" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 
-If you want to skip over the tutorial (I know it's pretty long) and just steal the code, check out the [CharacterAnimInstanceBase](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/CharacterAnimInstanceBase.h) and [FirstPersonCharacterAnimInstance](https://github.com/ChangeStudios/ProjectCrash/blob/release/Source/ProjectCrash/Animation/FirstPersonCharacterAnimInstance.h) classes on _Cloud Crashers'_ public source code.
-<br>
-<br>
-You'll see that _Cloud Crashers_ actually uses two animation instance classes: a base class and a first-person subclass. This is because _Cloud Crashers_ also supports third-person, and the third-person class re-uses the data in the base animation instance class. For the sake of simplicity, in this tutorial, I've rewritten the base class and first-person class into a single class.
+In _Cloud Crashers_, we actually uses two animation instance classes: a base class and a first-person subclass. This is because _Cloud Crashers_ also supports third-person, and the third-person class re-uses a lot of the data in the base animation instance class. For the sake of simplicity, in this tutorial, I've rewritten the base class and first-person class into one class.
 {: .notice--info}
 
 ## Base Pose
@@ -49,15 +49,15 @@ In our constructor, let's enable [multithreading](https://dev.epicgames.com/docu
 {% highlight c++ %}
 // FirstPersonCharacterAnimInstance.h
 
-UClass(Abstract)
-class PROJECTCRASH_API UFirstPersonCharacterAnimInstance : public UAnimInstance
+UCLASS(Abstract)
+class MYGAME_API UFirstPersonCharacterAnimInstance : public UAnimInstance
 {
     GENERATED_BODY()
 
 public:
 
     UFirstPersonCharacterAnimInstance();
-}
+};
 {% endhighlight %}
 
 {% highlight c++ %}
@@ -69,7 +69,7 @@ UFirstPersonCharacterAnimInstance::UFirstPersonCharacterAnimInstance()
 }
 {% endhighlight %}
 
-Remember to replace `PROJECTCRASH_API` with your game's API name. Unreal does this automatically if you use the "New C++ Class..." option.
+Remember to replace `MYGAME_API` with your game's API name. Unreal does this automatically if you use the "New C++ Class..." option.
 {: .notice--info}
 
 ### Locomotion Blend Space and State Machine
@@ -202,6 +202,9 @@ void UFirstPersonCharacterAnimInstance::UpdateVelocityData()
 Back in our animation blueprint, we can bind our local, normalized velocity to our blend space player:
 
 ![Blend space player final]({{ '/' | absolute_url }}/assets/images/per-post/fpp-animation/fppanim-locomotion-bs-02.png){: .align-center}
+
+Note that I'm using a 2D blend space to have different animations for walking forward, backward, left, and right. If you just want to use a single `Walk` animation, use the length of `LocalVelocity2DNormalized` as your blend space input by connecting a `Vector Length` node. This is what we actually do in _Cloud Crashers_; I just wanted to show that this system can also support directional walk animations.
+{: .notice--info}
 
 Now, we have a base locomotive pose based on our directional movement speed. But we still need to transition between our `Grounded` and `Airborne` states. If we don't, we'll keep running when we jump or fall, which isn't what we want.
 
@@ -608,11 +611,11 @@ protected:
      * @param SpringData			Data used to define the behavior of the spring model.
      * @return					The resulting spring interpolation value.
      */
-    float UpdateFloatSpringInterp(float SpringCurrent, float SpringTarget, FFloatSpringState& SpringState, FFloatSpringModelData& SpringData);
+    float UpdateFloatSpringInterp(float SpringCurrent, float SpringTarget, FFloatSpringState& SpringState, FFloatSpringModelData& SpringData) const;
 {% endhighlight %}
 
 {% highlight c++ %}
-float UFirstPersonCharacterAnimInstance::UpdateFloatSpringInterp(float SpringCurrent, float SpringTarget, FFloatSpringState& SpringState, FFloatSpringModelData& SpringData)
+float UFirstPersonCharacterAnimInstance::UpdateFloatSpringInterp(float SpringCurrent, float SpringTarget, FFloatSpringState& SpringState, FFloatSpringModelData& SpringData) const
 {
     const float DeltaSeconds = GetDeltaSeconds();
     
@@ -748,7 +751,7 @@ To do this, we need to normalize our aim speed, which is a little tricky, becaus
 If we wanted this to be _really_ consistent, we could use the player's sensitivity value for mice, and their controller's turn-rate for gamepads. But for the sake of simplicity, we can hard-code some arbitrary value (the difference is hardly noticeable):
 
 {% highlight c++ %}
-void UFirstPersonCharacterAnimInstance::UpdateAimSwayData(float DeltaSeconds)
+void UFirstPersonCharacterAnimInstance::UpdateAimSwayData()
 {
     const float MaxAimSpeed = 720.0f;
     const float MaxAimSpeedUpDown = (MaxAimSpeed / 2.0f); // Halved because characters' pitch has half the range of their yaw: (-90 -> 90) vs. (0 -> 360).
