@@ -50,7 +50,7 @@ In our constructor, let's enable [multithreading](https://dev.epicgames.com/docu
 // FirstPersonCharacterAnimInstance.h
 
 UCLASS(Abstract)
-class MYGAME_API UFirstPersonCharacterAnimInstance : public UAnimInstance
+class GAME_API UFirstPersonCharacterAnimInstance : public UAnimInstance
 {
     GENERATED_BODY()
 
@@ -69,7 +69,7 @@ UFirstPersonCharacterAnimInstance::UFirstPersonCharacterAnimInstance()
 }
 {% endhighlight %}
 
-Remember to replace `MYGAME_API` with your game's API name. Unreal does this automatically if you use the "New C++ Class..." option.
+Remember to replace `GAME_API` with your game's API name. Unreal does this automatically if you use the "New C++ Class..." option.
 {: .notice--info}
 
 ### Locomotion Blend Space and State Machine

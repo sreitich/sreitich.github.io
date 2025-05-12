@@ -10,7 +10,7 @@ last_modified_at: 2025-05-11
 
 Learn to create an animation notify that lets you add actors to your animations.
 
-This is an in-depth walkthrough to creating this class. If you just want the code, it can be found on Unreal Engine's Learning site.
+This is an in-depth walkthrough to creating this class. If you just want the code, it can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/oWD6/unreal-engine-spawning-actors-in-animations).
 {: .notice--info}
 
 ![Teaser]({{ '/' | absolute_url }}/assets/images/per-post/anim-actors/anim-actors-teaser.png){: .align-center}
