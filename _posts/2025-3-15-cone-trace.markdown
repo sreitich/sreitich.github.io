@@ -304,6 +304,28 @@ Because overlaps don't tell us the direction or location of where they occurred,
 
 Even if we _could_ perform a cone-shaped overlap (e.g. defining our own convex mesh geometry or simply using a cone-shaped mesh), the lack of information regarding how that overlap occurred is inadequate for most use cases. For example, we would have no idea where to place the particle effects in the images above.
 
+## Performance
+
+I mentioned that this trace method was computationally efficient. Let's do some profiling to see exactly how performant it is.
+
+I use this trace function in my melee attacks, which perform a trace 30 times per second while the ability's hitbox is active. This is an Unreal Insights trace (confusing name, I know) showing what one of these traces look like:
+
+![Cone trace profiling]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-trace-profiling.png){: .align-center}
+
+Here, you'll see that a single execution of this cone trace was performed in about `7.4 µs`, which is 7.4 _millionths_ of a second. Over a few tests, I found that it averages about `7-10 µs`.
+
+When running a game at `60 fps` (which should hopefully be the low end for most games), you'll have a total of `16,666 µs` (on each thread) to do work; `7-10 µs` for a gameplay-critical function is completely reasonable, and won't be causing any bottlenecks. You can even see that this function only comprised `0.07%` of the amount of work the game thread did this frame.
+
+Just for fun, let's compare this to the alternative approach above: performing an overlap with a mesh.
+
+I quickly mocked up a similar function that, instead of performing a sphere trace, performs an overlap query with a cone-shaped mesh. And, to simulate a real use-case, this function also performs a line trace to each overlap, since the overlap result alone doesn't give us all the data we want. Lastly, to be completely fair, I optimized the function a bit by only spawning one cone mesh and re-using it for each query, so the overhead of spawning the mesh itself can be skipped.
+
+Replacing our cone trace function with this new `ConeOverlap` function, our trace looks like this:
+
+![Cone trace overlap profiling]({{ '/' | absolute_url }}/assets/images/per-post/cone-trace/cone-trace-overlap-profiling.png){: .align-center}
+
+Yikes. On average, I found this function to take between `70-170 µs` (`150-300 µs` inclusive time), taking up around `2%` of our game thread's total work. Compared to our original function, that's upwards of 10-20 _times_ slower! That is an _insane_ difference. Not to mention the fact that even _with_ the line traces I mentioned, the data this method acquires is still far from optimal, and would likely require additional work to make usable.
+
 ## Conclusion
 
 Don't let your gameplay design be limited by the tools at your disposal, when you can always make your own. With a little creativity (and math), you can bring any idea to life.
