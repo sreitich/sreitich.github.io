@@ -5,18 +5,23 @@ excerpt: An exploration of the theory behind projectile prediction.
 header:
     teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
 author: Meta
-last_modified_at: 2025-06-28
+last_modified_at: 2025-06-29
 ---
 
-Part 1 of my series exploring projectile prediction in multiplayer games. This part breaks down the theory behind projectile prediction, some approaches to implementing it, and a short overview of the version _we'll_ create in (starting in part 2) using Unreal Engine.
+Part 1 of my series exploring and implementing projectile prediction for multiplayer games. This part breaks down the theory behind projectile prediction, some approaches to implementing it, and a short overview of the version _we'll_ create in (starting in part 2) using Unreal Engine.
 
 If you just want the final code, it can be found on [Unreal Engine's Learning site](...). However, this series is more focused on the theory behind projectile prediction, and the different approaches that can be taken to implement it, since, rather than just the code itself, since the approach you choose should be based on _your_ project's specific needs. 
 {: .notice--info}
 
 ## Introduction
 
-Real-time multiplayer games have to deal with something very tricky: latency—the time it takes for messages to travel between the server and clients. Whenever a player wants to do something, like fire a weapon, they need to tell the server, "_Hey, I want to fire my weapon._" 10, 30, or even 100 milliseconds later, the server receives the message, says "_Okay!_," and (usually) does what the client asked. Then, it takes _another_ 10+ ms for that "_Okay!_" to reach the client (along with every other connected client), so they can finally see their weapon fire.
+Real-time multiplayer games have to deal with something very tricky: latency—the time it takes for messages to travel between the server and clients. Whenever a player wants to do something, like fire a weapon, they need to send a request to the server; the server processes their request, updates the server game state, then sends a message to each client, telling them what happened, so everyone else can update their local game state to match. This results in a delay between every input players perform and the corresponding action.
 
-This is the basic framework of client-server communication. And it means that everything the client sees and does is always noticeably behind what's _actually_ happening on the server. It may not seem like a lot, but even just 20ms (10ms each way) makes a noticeable difference in how the game looks and feels.
+This delay is a fundamental problem in multiplayer games—especially ones that need to be responsive. Without any compensation, controls will feel unresponsive and slow, and players with lower latency will have an advantage over others.
 
-Game developers use all kinds of tricks to make latency as unnoticeable as possible, to make sure the game feels responsive. Chief among these is _client-side prediction_: instead of waiting to receive the server's "_Okay!_" when requesting some kind of action, clients will often just go ahead and do it on their own, with the assumption that the server will allow them to and eventually send that "_Okay_." If they're wrong (maybe they got stunned, so they _can't_ fire that weapon), the server will instead senc a message informing them what _actually_ happened, so the client can rewind their game state and correct themselves.
+In game development, the primary method for making latency as unnoticeable as possible, and for helping to mitigate unfairness for players with different network conditions, is client-side prediction. With client-side prediction, instead of waiting for the server to acknowledge our input requests, we perform them instantaneously on our local game state, with the assumption that the server will approve our request. If it does, we predicted successfully, and the client and server can synchronize their game states (since the client will now be a little _ahead_ of the server). If we predicted _incorrectly_ (e.g. we tried to fire a weapon, but we were stunned on the server, so we failed), the server will tell us what _actually_ happened, so we correct our game state to match the server's (this is called server reconciliation).
+
+This is an extremely simplistic overview of how client-server models and client-side prediction work, because I'm assuming you have some experience with these if you're reading this. If not, [this video provides a more comprehensive overview of this topic.](https://www.youtube.com/watch?v=2Xl0oaTKBXo)
+{: .notice--info}
+
+Unreal Engine handles 
