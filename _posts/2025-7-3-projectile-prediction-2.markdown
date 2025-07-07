@@ -291,13 +291,359 @@ uint32 ACrashPlayerController::GenerateNewFakeProjectileId()
 We'll see later on that, although this isn't the _most_ efficient method for linking projectiles, giving each set of projectiles a unique identifier is extremely useful when debugging.
 {: .notice--info}
 
+Now that we have the configuration parameters and utilities we need, we can finally start spawning projectiles.
+
 ## Spawning the Fake Projectile
 
-Spawn fake projectile
+In our `Activate` function, let's start by retrieving our player controller from the gameplay ability, since it has a lot of data we'll need.
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+void UAbilityTask_SpawnPredictedProjectile::Activate()
+{
+    Super::Activate();
+    
+    if (Ability && Ability->GetCurrentActorInfo())
+    {
+        if (AMyPlayerController* PC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
+        {
+        }
+    }
+}
+{% endhighlight %}
+
+Now, we need to gather a few pieces of data that will help us figure out the context of our current task. For example, whether this is the locally predicted execution of the task, or the server's authoritative execution of the task.
+
+{% highlight c++ %}
+void UAbilityTask_SpawnPredictedProjectile::Activate()
+{
+    Super::Activate();
+    
+    if (Ability && Ability->GetCurrentActorInfo())
+    {
+        if (AMyPlayerController* PC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
+        {
+            const float ForwardPredictionTime = PC->GetForwardPredictionTime();
+            const bool bShouldPredict = (ForwardPredictionTime > 0.0f);
+            const bool bIsNetAuthority = Ability->GetCurrentActorInfo()->IsNetAuthority();
+            const bool bShouldUseServerInfo = IsLocallyControlled();
+        }
+    }
+}
+{% endhighlight %}
+
+We only need to spawn a fake projectile if we're a local client (i.e. `bIsNetAuthority` is false) and our `ForwardPredictionTime` is greater than `0.0` (i.e. our ping is greater than `0.0`, to account for LAN servers).
+
+To properly spawn our fake projectile, we need a struct of type `FActorSpawnParameters`. These parameters will be re-used a few times, so we can make some helper functions to construct them when needed, with the necessary parameters. (We'll skip the pre-spawn initialization code for now, and come back to it once we implement our ID code in `AProjectile`).
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.h
+
+protected:
+
+    /** Helper to make spawn parameters for a projectile. */
+    FActorSpawnParameters GenerateSpawnParams() const;
+    
+    /** Helper to make spawn parameters for a fake projectile. */
+    FActorSpawnParameters GenerateSpawnParamsForFake(const uint32 ProjectileId) const;
+    
+    /** Helper to make spawn parameters for an authoritative projectile. */
+    FActorSpawnParameters GenerateSpawnParamsForAuth(const uint32 ProjectileId) const;
+{% endhighlight %}
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParams() const
+{
+    FActorSpawnParameters Params;
+    Params.Instigator = Ability->GetCurrentActorInfo()->AvatarActor.IsValid() ? Cast<APawn>(Ability->GetCurrentActorInfo()->AvatarActor) : nullptr;
+    Params.Owner = AbilitySystemComponent->GetOwnerActor();
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    return Params;
+}
+
+FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParamsForFake(const uint32 ProjectileId) const
+{
+    FActorSpawnParameters Params = GenerateSpawnParams();
+    AMyPlayerController* PC = Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController);
+    Params.CustomPreSpawnInitalization = [ProjectileId, PC](AActor* Actor)
+    {
+        // TODO: Initialize projectile ID.
+    };
+    return Params;
+}
+
+FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParamsForAuth(const uint32 ProjectileId) const
+{
+    FActorSpawnParameters Params = GenerateSpawnParams();
+    Params.CustomPreSpawnInitalization = [ProjectileId](AActor* Actor)
+    {
+        // TODO: Initialize projectile ID.
+    };
+    return Params;
+}
+{% endhighlight %}
+
+Now, back in `Activate`, we can use these parameters to spawn our fake projectile, after generating a new ID for it. (For now, we're assuming that our ping is low-enough to forward-predict without delaying our spawn.)
+
+{% highlight c++ %}
+void UAbilityTask_SpawnPredictedProjectile::Activate()
+{
+    Super::Activate();
+    
+    if (Ability && Ability->GetCurrentActorInfo())
+    {
+        if (AMyPlayerController* PC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
+        {
+            const float ForwardPredictionTime = PC->GetForwardPredictionTime();
+            const bool bShouldPredict = (ForwardPredictionTime > 0.0f);
+            const bool bIsNetAuthority = Ability->GetCurrentActorInfo()->IsNetAuthority();
+            const bool bShouldUseServerInfo = IsLocallyControlled();
+            
+            if (!bIsNetAuthority && bShouldPredict)
+            {
+				// If our ping is low enough to forward-predict, immediately spawn and initialize the fake projectile.
+                const uint32 FakeProjectileId = PC->GenerateNewFakeProjectileId();
+                if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, GenerateSpawnParamsForFake(FakeProjectileId)))
+                {
+                    if (ShouldBroadcastAbilityTaskDelegates())
+                    {
+                        Success.Broadcast(NewProjectile);
+                    }
+                    
+                    // We don't end the task here because we need to keep listening for possible rejection.
+                    
+                    return;
+                }
+            }
+        }
+    }
+}
+{% endhighlight %}
+
+We need this return statement because we'll handle our fail-cases afterwards.
+{: .notice--info}
+
+If this task—or the ability that activated it—is eventually rejected by the server (since we're doing this predictively), we'll need to reconcile by destroying the fake projectile, so we should cache a reference to it.
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.h
+
+protected:
+
+    /** The fake projectile spawned by this task on the client. Used to destroy the spawned projectile if this task is
+     * rejected. */
+    TWeakObjectPtr<AProjectile> SpawnedFakeProj;
+{% endhighlight %}
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+                    // ...
+
+                    // Cache the projectile in case the server rejects this task, and we have to destroy it.
+                    SpawnedFakeProj = NewProjectile;
+
+                    if (ShouldBroadcastAbilityTaskDelegates())
+                    {
+                        Success.Broadcast(NewProjectile);
+                    }
+                    
+                    // We don't end the task here because we need to keep listening for possible rejection.
+                    
+                    return;
+
+                    // ...
+{% endhighlight %}
+
+Lastly, we should start adding some debug information. Let's create a new log category called `LogProjectiles` to write our debug information. You can put this code anywhere, but a good place is a dedicated `Logging` file.
+
+{% highlight c++ %}
+// MyGameLogging.h
+
+/** Log channel for the projectile prediction system. */
+GAME_API DECLARE_LOG_CATEGORY_EXTERN(LogProjectiles, Log, All);
+
+/** Projectile log channel shorthand. */
+#define PROJECTILE_LOG(Verbosity, Format, ...) \
+{ \
+    UE_LOG(LogProjectiles, Verbosity, Format, ##__VA_ARGS__); \
+}
+{% endhighlight %}
+
+{% highlight c++ %}
+// MyGameLogging.cpp
+
+DEFINE_LOG_CATEGORY(LogProjectiles);
+{% endhighlight %}
+
+Now, we can start adding debug writes to our projectile code.
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+                    // ...
+
+                    PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned fake projectile (%s) on time. Attempting to forward-predict (%fms) with ping (%fms). Client bias: (%i%%)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), FakeProjectileId, *GetNameSafe(NewProjectile), ForwardPredictionTime * 1000.0f, PC->PlayerState->ExactPing, (uint32)(PC->ClientBiasPct * 100.0f));
+
+                    // Cache the projectile in case the server rejects this task, and we have to destroy it.
+                    SpawnedFakeProj = NewProjectile;
+
+                    if (ShouldBroadcastAbilityTaskDelegates())
+                    {
+                        Success.Broadcast(NewProjectile);
+                    }
+                    
+                    // We don't end the task here because we need to keep listening for possible rejection.
+                    
+                    return;
+
+                    // ...
+{% endhighlight %}
 
 ### Deferring the Spawn
 
-Delayed spawn
+As noted earlier, if our client's ping is _higher_ than `MaxPredictionPing`, we need to delay spawning the projectile, so it isn't forward-predicted too far.
+
+To do this, we need to cache the projectile's spawn data, set a timer, and then spawn the projectile with that data once it ends.
+
+Let's start by defining a struct to store our spawn data.
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.h
+
+/**
+ * Cached spawn information for predicted projectiles that are spawned after a delay. Projectile spawning is delayed
+ * when the client's ping is higher than the maximum forward prediction ping to prevent projectiles from being
+ * forward-predicted too far.
+ */
+USTRUCT()
+struct FDelayedProjectileInfo
+{
+    GENERATED_BODY()
+    
+    UPROPERTY()
+    TSubclassOf<AProjectile> ProjectileClass;
+    
+    UPROPERTY()
+    FVector SpawnLocation;
+    
+    UPROPERTY()
+    FRotator SpawnRotation;
+    
+    UPROPERTY()
+    TWeakObjectPtr<AMyPlayerController> PC;
+    
+    UPROPERTY()
+    uint32 ProjectileId;
+    
+    FDelayedProjectileInfo() :
+        ProjectileClass(nullptr),
+        SpawnLocation(ForceInit),
+        SpawnRotation(ForceInit),
+        PC(nullptr),
+        ProjectileId(0)
+    {}
+};
+{% endhighlight %}
+
+Next, add a variable for storing this data to our task class.
+
+{% highlight c++ %}
+protected:
+
+    /** Cached spawn info for spawning a fake projectile after a delay. */
+    UPROPERTY()
+    FDelayedProjectileInfo DelayedProjectileInfo;
+{% endhighlight %}
+
+While we're here, let's also define the handle we'll use for our delay timer, and the function we'll call when that timer ends.
+
+{% highlight c++ %}
+protected:
+    
+    /** Handle for spawning a fake projectile after a delay, when the client's ping is higher than the
+     * forward-prediction limit. */
+    FTimerHandle SpawnDelayedFakeProjHandle;
+    
+    /** Cached spawn info for spawning a fake projectile after a delay. */
+    UPROPERTY()
+    FDelayedProjectileInfo DelayedProjectileInfo;
+
+    /** Spawns a fake projectile using the DelayedProjectileInfo. */
+    void SpawnDelayedFakeProjectile();
+{% endhighlight %}
+
+Now, in our `Activate` function, before we try spawning the fake projectile, check if our ping is high enough to delay the spawn instead.
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+            // ...
+
+            if (!bIsNetAuthority && bShouldPredict)
+            {
+                /* On clients, if our ping is too high to forward-predict, delay spawning the projectile so we don't
+                 * forward-predict further than MaxPredictionPing. */
+                float SleepTime = PC->GetProjectileSleepTime();
+                if (SleepTime > 0.0f)
+                {
+                    if (!GetWorld()->GetTimerManager().IsTimerActive(SpawnDelayedFakeProjHandle))
+                    {
+                        // Set a timer to spawn the predicted projectile after a delay.
+                        DelayedProjectileInfo.ProjectileClass = ProjectileClass;
+                        DelayedProjectileInfo.SpawnLocation = SpawnLocation;
+                        DelayedProjectileInfo.SpawnRotation = SpawnRotation;
+                        DelayedProjectileInfo.PC = PC;
+                        DelayedProjectileInfo.ProjectileId = PC->GenerateNewFakeProjectileId();
+                        GetWorld()->GetTimerManager().SetTimer(SpawnDelayedFakeProjHandle, this, &UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile, SleepTime, false);
+                        
+                        PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Spawning fake projectile delayed. Ping (%fms) exceeds maximum prediction time. Sleeping for (%fms) to forward-predict with maximum time (%fms) and latency reduction (%fms)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), DelayedProjectileInfo.ProjectileId, PC->PlayerState->ExactPing, SleepTime * 1000.0f, ForwardPredictionTime * 1000.0f, PC->PredictionLatencyReduction);
+                    }
+                    
+                    return;
+                }
+                
+                // If our ping is low enough to forward-predict, immediately spawn and initialize the fake projectile.
+                const uint32 FakeProjectileId = PC->GenerateNewFakeProjectileId();
+    
+                // ...
+{% endhighlight %}
+
+When that timer ends, all we have to do is spawn the projectile using our cached info.
+
+{% highlight c++ %}
+void UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile()
+{
+    if (Ability && Ability->GetCurrentActorInfo() && DelayedProjectileInfo.PC.IsValid())
+    {
+        if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(DelayedProjectileInfo.ProjectileClass, DelayedProjectileInfo.SpawnLocation, DelayedProjectileInfo.SpawnRotation, GenerateSpawnParamsForFake(DelayedProjectileInfo.ProjectileId, DelayedProjectileInfo.PC.Get())))
+        {
+            PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned fake projectile (%s) delayed. Attempting to forward-predict (%fms) with ping (%fms)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), DelayedProjectileInfo.ProjectileId, *GetNameSafe(NewProjectile), DelayedProjectileInfo.PC->GetForwardPredictionTime() * 1000.0f, DelayedProjectileInfo.PC->PlayerState->ExactPing);
+
+            // Send the spawn information to the server so they can spawn the authoritative projectile.
+            SendSpawnDataToServer(DelayedProjectileInfo.SpawnLocation, DelayedProjectileInfo.SpawnRotation, DelayedProjectileInfo.ProjectileId);
+
+            SpawnedFakeProj = NewProjectile;
+
+            if (ShouldBroadcastAbilityTaskDelegates())
+            {
+                Success.Broadcast(NewProjectile);
+            }
+
+            // We don't end the task here because we need to keep listening for possible rejection.
+
+            return;
+        }
+    }
+}
+{% endhighlight %}
+
+And with that, our fake projectile should be getting spawned successfully:
+
+TODO: Fake projectile being spawned.
 
 ## Spawning the Authoritative Projectile
 
@@ -314,3 +660,5 @@ Spawn real projectile
 ### Handling Listen Servers/Standalone
 
 Spawn non-predicted authoritative projectile
+
+## Reconciliation
