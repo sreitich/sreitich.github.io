@@ -13,7 +13,7 @@ Part 1 of a series exploring and implementing projectile prediction for multipla
 This tutorial uses Unreal Engine for its code, but the theory and techniques are applicable for any game engine.
 {: .notice--info}
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](...). However, this series is more focused on the theory behind projectile prediction, and the different approaches that can be taken to implement it, since, rather than just the code itself, since the approach you choose should be based on _your_ project's specific needs. 
+If you just want the final code, it can be found on [Unreal Engine's Learning site](...). This is a complex topic, so the subsequent posts, which walk through the code implementation, are extremely long-winded, since I want to provide a detailed explanation of how every part of this system works. If you aren't interested in an extensive walkthrough, it may be easier to copy the code directly, and use these posts as a reference for explanations on anything you don't understand.
 {: .notice--info}
 
 ## Introduction

@@ -10,7 +10,7 @@ last_modified_at: 2025-07-03
 
 Part 2 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through how to predictively spawn projectile actors using the Gameplay Ability System in Unreal Engine.
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](...).
+If you just want the final code, it can be found on [Unreal Engine's Learning site](...). Again, this is a long-winded and detailed walkthrough of the entire code. If that's not something you're interested in, it may be easier to copy the code, and use this page as a reference for explanations on anything that's unclear.
 {: .notice--info}
 
 ## Introduction
@@ -484,6 +484,8 @@ Now, we can start adding debug writes to our projectile code.
 {% highlight c++ %}
 // AbilityTask_SpawnPredictedProjectile.cpp
 
+void UAbilityTask_SpawnPredictedProjectile::Activate()
+{
                     // ...
 
                     PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned fake projectile (%s) on time. Attempting to forward-predict (%fms) with ping (%fms). Client bias: (%i%%)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), FakeProjectileId, *GetNameSafe(NewProjectile), ForwardPredictionTime * 1000.0f, PC->PlayerState->ExactPing, (uint32)(PC->ClientBiasPct * 100.0f));
@@ -501,6 +503,7 @@ Now, we can start adding debug writes to our projectile code.
                     return;
 
                     // ...
+}
 {% endhighlight %}
 
 ### Deferring the Spawn
@@ -649,16 +652,437 @@ TODO: Fake projectile being spawned.
 
 ### Sending Spawn Data to the Server
 
-Creating target data
-Send data to the server
+To spawn our authoritative projectile, we need to send the spawn information from the client to the server.
 
-### Receiving Spawn Data on the Server
+If we were to use the same spawn parameters given in our constructor, our authoritative projectile would spawn in a different location than our fake projectile. This is because `Local Predicted` abilities are executed once on the local client, then again on the server once the client's "activate" input is replicated.
 
-Listen for data
-Spawn real projectile
+If we were to set up our task like so:
+
+TODO: task using local inputs
+
+... the parameters would be different on the client and the server; if we had `60ms` of ping, then the server would read those values `30ms` later, and thus end up with different values than the client read when it activated `30ms` prior.
+
+We _could_ just use the server's values for the authoritative projectile, but it's better if we use the client's values, so both projectiles start with the same transform. This way, regardless of any fast-forwarding or rewinding, both projectiles will always follow the same trajectory, which makes reconciliation much easier and makes the game feel more accurate for the player firing the projectile.
+
+Lucky for us, ability tasks give us an easy way to send our client's spawn information to the server without having to worry about RPCs: target data. Target data is a type of data structure that can be replicated between the client and the server using a collection of built-in methods in the ability system component.
+
+To replicate our data, we first need to define a new target data struct to hold it:
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.h
+
+/**
+ * Target data for spawning projectiles. Used to send spawn information from the client to the server.
+ */
+USTRUCT()
+struct FGameplayAbilityTargetData_ProjectileSpawnInfo : public FGameplayAbilityTargetData
+{
+    GENERATED_BODY()
+    
+    /** Location to spawn projectile at. */
+    UPROPERTY()
+    FVector SpawnLocation;
+    
+    /** Rotation with which to spawn projectile. */
+    UPROPERTY()
+    FRotator SpawnRotation;
+    
+    /** The projectile's ID. Used to link fake and authoritative projectiles. */
+    UPROPERTY()
+    uint32 ProjectileId;
+    
+    FGameplayAbilityTargetData_ProjectileSpawnInfo() :
+        SpawnLocation(ForceInit),
+        SpawnRotation(ForceInit),
+        ProjectileId(0)
+    {}
+    
+    virtual UScriptStruct* GetScriptStruct() const override
+    {
+        return FGameplayAbilityTargetData_ProjectileSpawnInfo::StaticStruct();
+    }
+    
+    virtual FString ToString() const override
+    {
+        return FString::Printf(TEXT("FGameplayAbilityTargetData_ProjectileSpawnInfo: (%i)"), ProjectileId);
+    }
+    
+    static FGameplayAbilityTargetDataHandle MakeProjectileSpawnInfoTargetData(const FVector& SpawnLocation, const FRotator& SpawnRotation, const uint32 ProjectileId)
+    {
+        FGameplayAbilityTargetData_ProjectileSpawnInfo* TargetData = new FGameplayAbilityTargetData_ProjectileSpawnInfo();
+        TargetData->SpawnLocation = SpawnLocation;
+        TargetData->SpawnRotation = SpawnRotation;
+        TargetData->ProjectileId = ProjectileId;
+        FGameplayAbilityTargetDataHandle Handle;
+        Handle.Data.Add(TSharedPtr<FGameplayAbilityTargetData_ProjectileSpawnInfo>(TargetData));
+        return Handle;
+    }
+    
+    bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+    {
+        Ar << SpawnLocation;
+        Ar << SpawnRotation;
+        Ar << ProjectileId;
+        
+        bOutSuccess = true;
+        return true;
+    }
+};
+
+template<>
+struct TStructOpsTypeTraits<FGameplayAbilityTargetData_ProjectileSpawnInfo> : public TStructOpsTypeTraitsBase2<FGameplayAbilityTargetData_ProjectileSpawnInfo>
+{
+    enum
+    {
+        WithNetSerializer = true
+    };
+};
+{% endhighlight %}
+
+Now that we have a way to store our spawn data, let's make a helper function to send it to from the client to the server (since there are a couple of different places we may need to do so).
+
+{% highlight c++ %}
+protected:
+
+    /** Replicates the client's spawn data to the server, so the server can spawn the authoritative projectile. */
+    void SendSpawnDataToServer(const FVector& InLocation, const FRotator& InRotation, uint32 InProjectileId);
+{% endhighlight %}
+
+To replicate this data from the client to the server, all we need to do is create a new prediction window, and use it to call `CallServerSetReplicatedTargetData` on our owning ability system component, passing in our target data.
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+void UAbilityTask_SpawnPredictedProjectile::SendSpawnDataToServer(const FVector& InLocation, const FRotator& InRotation, uint32 InProjectileId)
+{
+    const bool bGenerateNewKey = !AbilitySystemComponent->ScopedPredictionKey.IsValidForMorePrediction();
+    FScopedPredictionWindow ScopedPrediction(AbilitySystemComponent.Get(), bGenerateNewKey);
+    FGameplayAbilityTargetDataHandle Handle = FGameplayAbilityTargetData_ProjectileSpawnInfo::MakeProjectileSpawnInfoTargetData(InLocation, InRotation, InProjectileId);
+    AbilitySystemComponent->CallServerSetReplicatedTargetData(GetAbilitySpecHandle(), GetActivationPredictionKey(), Handle, FGameplayTag(), AbilitySystemComponent->ScopedPredictionKey);
+}
+{% endhighlight %}
+
+Now, we need to call this function in two places: after spawning our fake projectile in `Activate`, and after spawning our _delayed_ fake projectile in `SpawnDelayedFakeProjectile`:
+
+{% highlight c++ %}
+void UAbilityTask_SpawnPredictedProjectile::Activate()
+{
+                    // ...
+
+                    // Send the spawn info to the server so it can spawn the authoritative projectile.
+                    SendSpawnDataToServer(SpawnLocation, SpawnRotation, FakeProjectileId);
+                    
+                    // Cache the projectile in case the server rejects this task, and we have to destroy it.
+                    SpawnedFakeProj = NewProjectile;
+
+                    // ...
+}
+
+void UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile()
+{
+            // ...
+
+            // Send the spawn info to the server so it can spawn the authoritative projectile.
+            SendSpawnDataToServer(DelayedProjectileInfo.SpawnLocation, DelayedProjectileInfo.SpawnRotation, DelayedProjectileInfo.ProjectileId);
+
+            SpawnedFakeProj = NewProjectile;
+
+            // ...
+}
+{% endhighlight %}
+
+### Listening for Spawn Data on the Server
+
+On the server, we need to set up a listener to retrieve the data sent by the client. We need two callback functions:
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.h
+
+protected:
+
+    /** Spawns the authoritative projectile on the server when the spawn data is received from the client. */
+    void OnSpawnDataReplicated(const FGameplayAbilityTargetDataHandle& Data, FGameplayTag Activation);
+    
+    /** Cancels this task on the server if the client failed to spawn their version of the projectile. */
+    void OnSpawnDataCancelled();
+{% endhighlight %}
+
+Back in the `Activate` function, the server activates their version of the task, instead of spawning the projectile (like we did on the client), we need to bind these callbacks.
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+            // ...
+
+            const bool bShouldUseServerInfo = IsLocallyControlled();
+
+            // On the server (if it's not a listen server), wait for the client to send us the projectile's spawn info.
+            if (bIsNetAuthority && !bShouldUseServerInfo)
+            {
+                const FGameplayAbilitySpecHandle& SpecHandle = GetAbilitySpecHandle();
+                const FPredictionKey& ActivationPredictionKey = GetActivationPredictionKey();
+                
+                AbilitySystemComponent->AbilityTargetDataSetDelegate(SpecHandle, ActivationPredictionKey).AddUObject(this, &UAbilityTask_SpawnPredictedProjectile::OnSpawnDataReplicated);
+                AbilitySystemComponent->AbilityTargetDataCancelledDelegate(SpecHandle, ActivationPredictionKey).AddUObject(this, &UAbilityTask_SpawnPredictedProjectile::OnSpawnDataCancelled);
+                
+                // Check if the client already sent the data.
+                AbilitySystemComponent->CallReplicatedTargetDataDelegatesIfSet(SpecHandle, ActivationPredictionKey);
+                
+                // Kill the ability if we never receive the data.
+                SetWaitingOnRemotePlayerData();
+                
+                return;
+            }
+            
+            if (!bIsNetAuthority && bShouldPredict)
+
+            // ...
+}
+{% endhighlight %}
+
+Now, the server should successfully receive the client's spawn data when the task is activated.
+
+### Spawning the Projectile
+
+Once our data is replicated, we can use it to spawn the authoritative projectile.
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+void UAbilityTask_SpawnPredictedProjectile::OnSpawnDataReplicated(const FGameplayAbilityTargetDataHandle& Data, FGameplayTag Activation)
+{
+    // Copy the target data before we consume it.
+    const FGameplayAbilityTargetData* TargetData = Data.Get(0);
+
+    // Consume the client's data. Ensures each server task only spawns one projectile for each client task.
+    if (!Cast<UCrashAbilitySystemComponent>(AbilitySystemComponent)->TryConsumeClientReplicatedTargetData(GetAbilitySpecHandle(), GetActivationPredictionKey()))
+    {
+        return;
+    }
+
+    if (TargetData)
+    {
+        if (const FGameplayAbilityTargetData_ProjectileSpawnInfo* SpawnInfo = static_cast<const FGameplayAbilityTargetData_ProjectileSpawnInfo*>(TargetData))
+        {
+            AMyPlayerController* PC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr;
+            const float ForwardPredictionTime = PC->GetForwardPredictionTime();
+            
+            if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnInfo->SpawnLocation, SpawnInfo->SpawnRotation, GenerateSpawnParamsForAuth(SpawnInfo->ProjectileId)))
+            {
+                // Note that there will be a discrepancy between the server's perceived ping and the client's.
+                PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned authoritative projectile (%s). Forwarded (%fms) for perceived ping (%fms). Latency reduction: (%fms) Client bias: (%i%%)"), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), SpawnInfo->ProjectileId, *GetNameSafe(NewProjectile), ForwardPredictionTime * 1000.0f, PC->PlayerState->ExactPing, PC->PredictionLatencyReduction, (uint32)(PC->ClientBiasPct * 100.0f));
+            
+                if (ShouldBroadcastAbilityTaskDelegates())
+                {
+                    Success.Broadcast(NewProjectile);
+                }
+                
+                EndTask();
+                
+                return;
+            }
+        }
+    }
+
+    if (ShouldBroadcastAbilityTaskDelegates())
+    {
+        FailedToSpawn.Broadcast(nullptr);
+    }
+    
+    EndTask();
+}
+{% endhighlight %}
+
+This is also where we'd fast-forward the projectile, but we're not doing that yet since we need a reference to the projectile's movement component, which we haven't created yet. We'll come back to this in the next part of this series.
+
+If our data _fails_ to replicate (because the ability was cancelled or rejected), we need to cancel the server's version of the task.
+
+{% highlight c++ %}
+void UAbilityTask_SpawnPredictedProjectile::OnSpawnDataCancelled()
+{
+    if (ShouldBroadcastAbilityTaskDelegates())
+    {
+        FailedToSpawn.Broadcast(nullptr);
+    }
+    
+    EndTask();
+}
+{% endhighlight %}
+
+### Handling Failure
+
+`OnSpawnDataCancelled` accounts for situations where our data doesn't get replicated, but we've also handled another fail-case at the end of `OnSpawnDataReplicated`: if the server fails to spawn the projectile, we're canceling the task and executing the `FailedToSpawn` output pin. Together, these account for possible failures on the server side. But we also need to handle failures on the client side.
+
+When a _client_ fails to spawn their projectile, or when their task is rejected (since any rejection on the server will get replicated to clients), we need to do the same thing: cancel the task and execute `FailedToSpawn`. But we _also_ need to make sure we cancel our target data replication, so the server doesn't try to spawn the authoritative projectile.
+
+Let's make a helper function to cancel our target data:
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.h
+
+protected:
+
+    /** Sends the task cancellation to the server if the client failed. */
+    void CancelServerSpawn();
+{% endhighlight %}
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+void UAbilityTask_SpawnPredictedProjectile::CancelServerSpawn()
+{
+    const bool bGenerateNewKey = !AbilitySystemComponent->ScopedPredictionKey.IsValidForMorePrediction();
+    FScopedPredictionWindow ScopedPrediction(AbilitySystemComponent.Get(), bGenerateNewKey);
+    AbilitySystemComponent->ServerSetReplicatedTargetDataCancelled(GetAbilitySpecHandle(), GetActivationPredictionKey(), AbilitySystemComponent->ScopedPredictionKey);
+}
+{% endhighlight %}
+
+There are two places we need to cancel our task: the end of `Activate` and the end of `SpawnDelayedFakeProjectile` (hence why we put `return` statements after each successful branch).
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+void UAbilityTask_SpawnPredictedProjectile::Activate()
+{
+    // ...
+    
+    // Cancel the task on the server if the client failed.
+    CancelServerSpawn();
+    
+    // Failed to spawn. Ability should usually be cancelled at this point.
+    if (ShouldBroadcastAbilityTaskDelegates())
+    {
+        FailedToSpawn.Broadcast(nullptr);
+    }
+    
+    EndTask();
+}
+
+void UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile()
+{
+    // ...
+
+    // Cancel the task on the server if the client failed.
+    CancelServerSpawn();
+
+    // Failed to spawn. Ability should usually be cancelled at this point.
+    if (ShouldBroadcastAbilityTaskDelegates())
+    {
+        FailedToSpawn.Broadcast(nullptr);
+    }
+    
+    EndTask();
+}
+{% endhighlight %}
+
+Now, if either the client _or_ server fail to spawn their projectile, the entire task will be canceled, and `FailedToSpawn` will be triggered in both the client _and_ the server's ability. This lets us reliably handle these failures in our ability script (usually just canceling the ability), with the guarantee that `FailedToSpawn` will always be executed on both versions of the ability.
+
+The last possible failure situation we need to handle is if our task is rejected externally (usually because the ability was rejected on the server). When this happens, we need to destroy our fake projectile, and remove it from our player controller's list of unlinked fake projectiles. Let's create one more callback function to handle that.
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.h
+
+protected:
+
+    /** Destroys the client's fake projectile if this task is rejected (e.g. the server rejects the ability
+     * activation). */
+    UFUNCTION()
+    void OnTaskRejected();
+{% endhighlight %}
+
+{% highlight c++ %}
+// AbilityTask_SpawnPredictedProjectile.cpp
+
+void UAbilityTask_SpawnPredictedProjectile::OnTaskRejected()
+{
+    PROJECTILE_LOG(Warning, TEXT("(ID: %i): SpawnPredictedProjectile task in ability (%s) rejected. Destroying fake projectile (%s)..."), *GetNameSafe(SpawnedFakeProj.Get()), *GetNameSafe(Ability), *GetNameSafe(SpawnedFakeProj.Get()));
+    
+    AMyPlayerController* PC = (Ability && Ability->GetCurrentActorInfo()) ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController) : nullptr;
+    
+    // If we've spawned a fake projectile on the client, destroy it.
+    if (SpawnedFakeProj.IsValid())
+    {
+        // The fake projectile will still be lingering on the PC's list of unlinked projectiles; we need to remove it.
+        if (PC)
+        {
+            if (const uint32* Key = PC->FakeProjectiles.FindKey(SpawnedFakeProj.Get()))
+            {
+                UE_LOG(LogProjectiles, Error, TEXT("Removed %i"), *Key);
+                PC->FakeProjectiles.Remove(*Key);
+            }
+        }
+        
+        SpawnedFakeProj.Get()->Destroy();
+    }
+    
+    // If we didn't spawn the fake projectile yet (because we're waiting for a delayed spawn), cancel it.
+    GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
+}
+{% endhighlight %}
+
+Finally, we can just bind this function to GAS's built-in prediction system.
+
+{% highlight c++ %}
+void UAbilityTask_SpawnPredictedProjectile::Activate()
+{
+    Super::Activate();
+    
+    // On the client, listen for if this task is rejected. If it is, we need to destroy our fake projectile.
+    if (IsPredictingClient())
+    {
+        GetActivationPredictionKey().NewRejectedDelegate().BindUObject(this, &UAbilityTask_SpawnPredictedProjectile::OnTaskRejected);
+    }
+
+    // ...
+{% endhighlight %}
 
 ### Handling Listen Servers/Standalone
 
-Spawn non-predicted authoritative projectile
+There's one situation we haven't accounted for yet: listen servers. If a player on a listen server spawns a projectile, we don't want to spawn a fake projectile (since they don't have to worry about latency), and we don't want to send spawn data to the server (since they _are_ the server). Instead, we can simply spawn the authoritative projectile.
 
-## Reconciliation
+{% highlight c++ %}
+void UAbilityTask_SpawnPredictedProjectile::Activate()
+{
+            // ...
+
+            if (!bIsNetAuthority && bShouldPredict)
+            {
+                // ...
+            }
+            /* On listen servers or in standalone, spawn the authoritative projectile. No prediction is needed in this
+             * case. Remote servers don't spawn authoritative actors until OnTargetDataReplicated. */
+            else if (bIsNetAuthority && bShouldUseServerInfo)
+            {
+                if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, GenerateSpawnParams()))
+                {
+                    PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: N/A): Successfully spawned authoritative projectile (%s) on time for local server. No prediction performed."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), *GetNameSafe(NewProjectile));
+                    
+                    if (ShouldBroadcastAbilityTaskDelegates())
+                    {
+                        Success.Broadcast(NewProjectile);
+                    }
+                    
+                    EndTask();
+                    
+                    return;
+                }
+            }
+
+           // ...
+{% endhighlight %}
+
+Now, we should _finally_ have our finished task. We should now be seeing a fake projectile being spawned on clients, and an authoritative projectile being spawned on servers:
+
+// TODO
+
+We can even test our rejection handling by adding the following script to our ability's `CanActivate` function:
+
+// TODO
+
+Now, since the server will always reject the ability, we should see our client's fake projectile being destroyed by the rejection:
+
+// TODO
+
+## What's Next
+
+Now that we have a task for spawning our projectiles, we'll be implementing the projectile class itself, and we'll be adding a couple of things to this task to make sure that projectile is being properly initialized.
