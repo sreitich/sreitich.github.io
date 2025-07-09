@@ -5,7 +5,7 @@ excerpt: Predictively spawning projectiles with the Gameplay Ability System.
 header:
     teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
 author: Meta
-last_modified_at: 2025-07-03
+last_modified_at: 2025-07-09
 ---
 
 Part 2 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through how to predictively spawn projectile actors using the Gameplay Ability System in Unreal Engine.
@@ -385,6 +385,9 @@ FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParams
     return Params;
 }
 {% endhighlight %}
+
+Note that we're making the `Instigator` our ASC's avatar (the player's pawn) and the `Owner` our ASC's owner (which is usually the player state). This will be important when we implement our `AProjectile` class.
+{: .notice--info}
 
 Now, back in `Activate`, we can use these parameters to spawn our fake projectile, after generating a new ID for it. (For now, we're assuming that our ping is low-enough to forward-predict without delaying our spawn.)
 
