@@ -63,7 +63,7 @@ This presents a new issue, however: because we're spawning the fake projectile _
 
 To fix our synchronization issues, after spawning the fake projectile, we could try to synchronize it with the real one once it's been replicated. There are actually two different ways to implement this particular solution.
 
-The first solution is to simply switch to the real projectile once it's replicated, destroying the fake projectile in the process.
+The first solution is to simply teleport the fake projectile to the real projectile's location once it's replicated.
 
 ![Prediction diagram: fake projectile with instant sync]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-1/visualization-fake-proj-sync-instant.png){: .align-center}
 
@@ -82,7 +82,7 @@ Both of these solutions are perfectly viable (we'll opt to use the latter when w
 
 We mentioned that our predicted projectile is a "fake": it doesn't actually damage enemies or have any effect on gameplay; that's still the responsibility of the server's projectile.
 
-What that means is that, since the server's projectile is the one actually performing hit detection, players with lower latency will still have an advantage, because their projectiles will be spawned on the server faster and be closer to their _desired_ shot (i.e. which is represented by their _fake_ projectile). This is another issue that we need to account for.
+What that means is that, since the server's projectile is the one actually performing hit detection, players with lower latency will still have an advantage, because their projectiles will be spawned on the server faster and be closer to their _desired_ shot (which is represented by their _fake_ projectile). This is another issue that we need to account for.
 
 ### Fast-Forwarding
 
@@ -92,17 +92,17 @@ Ideally, for maximum responsiveness _and_ fairness, the real projectile should b
 
 This—combined with our fake projectile—essentially mitigates latency from the equation _completely_, which is great. However, you might realize that this presents yet another problem: fairness for _other_ players. If a client is playing with `200ms` of ping, on the server, their `100m/s` projectile will be fast-forwarded `10m` ahead of where it spawned, and, on other clients, will appear **`20m`** ahead of where it spawned. That means that if a player is any less than `20m` away (a considerable distance), they'll never even _see_ the projectile, because it will hit them before it even appears on their screen.
 
-In addition to being jarring, this just isn't fair to other players—especially ones at lower latencies.
+In addition to being visually jarring, this just isn't fair to other players.
 
 ### Partial Fast-Forwarding
 
-To keep things fair, instead of completely fast-forwarding the projectile to where it should be on the client, we should instead fast-forward it only partially. By measuring the client's latency, we can fast-forward it just enough such that it appears somewhere between where the local client "wants" it (e.g. some `10m` ahead), and where the server "wants" it (right in front of the player).
+To help keep things fair, instead of completely fast-forwarding the projectile to where it should be on the client, we can instead fast-forward it only partially. By measuring the client's latency, we can fast-forward it just enough such that it appears somewhere between where the local client "wants" it (e.g. some `10m` ahead), and where the server "wants" it (right in front of the player).
 
-Placing the projectile closer to where the local client wants it favors the player; placing it closer to where the server wants it favors _other_ players. So, for a good compromise, how about we place it _halfway_ between where the client and server want it?
+Placing the projectile closer to where the local client wants it favors the player; placing it closer to where the server wants it favors _other_ players. So, for a good compromise, we could place it about halfway between where the client and server want it (which, granted, this diagram doesn't do a great job at showing):
 
 ![Prediction diagram: partial fast-forwarding]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-1/visualization-forwarding-partial.png){: .align-center}
 
-To prevent the projectile from ever fast-forwarding an extreme distance, we should also place a limit on how far we can forward the projectile.
+To prevent the projectile from ever fast-forwarding an extreme distance, we should also place a limit on how far we can forward-predict the projectile.
 {: .notice--info}
 
 ### Partial Fast-Forwarding with Synchronization
@@ -121,7 +121,7 @@ When the projectile is initially replicated to a remote client, we can _rewind_ 
 
 ![Prediction diagram: partial fast-forwarding with lerping synchronization and remote resimulation]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-1/visualization-forwarding-partial-w-sync-and-resim.png){: .align-center}
 
-You might think that this will cause synchronization issues, since the remote client's projectile is now behind the real one. However, in practice, these problems are actually fairly easy to account for since, because of replication time, the projectile will _already_ be behind. For example, if we trigger some explosion VFX with an RPC when the server's projectile hit something, it will take `30ms` (with `60ms` of ping) for that explosion to appear on remote clients. When that `30ms` ends, our projectile will likely have already _caught up_ to where it exploded on the server.
+You might think that this will cause synchronization issues, since the remote client's projectile is now behind the real one. However, in practice, these problems are actually fairly easy to account for since, because of replication time, the projectile will _already_ be behind. For example, if we trigger some explosion VFX with an RPC when the server's projectile hits something, it will take `30ms` (assuming `60ms` of ping) for that explosion to appear on remote clients. When that `30ms` ends, our projectile will likely have already _caught up_ to where it exploded on the server.
 
 ## Solution
 
@@ -132,22 +132,22 @@ In the subsequent parts of this series, I'll walk through designing and implemen
 We'll only be using the Gameplay Ability System so we can hook into its prediction system to spawn our projectiles. If your project doesn't use GAS, you can still use this system; you'll just have to spawn the projectiles your own way.
 {: .notice--info}
 
-Before we dive in, let's look at an overview of how this system will work.
+Before we dive in, let's look at an overview of how this system will work, and recap how our prediction model will operate.
 
 ### Spawning
 
 To spawn our projectiles, we'll use the Gameplay Ability System to predictively spawn a "fake" projectile on the local client, spawn the real projectile on the server, and link the two together so they can be synchronized. This code will comprise the next part of this tutorial.
 
-We're using GAS so we can hook into its built-in prediction system. We'll spawn projectiles inside gameplay abilities so that if our ability is rejected by the server, we can reconcile the missed prediction by destroying our fake projectile. We'll handle other prediction logic on our own; we're just using GAS to predict the actual spawning of the projectile.
+We're using GAS so we can hook into its built-in prediction system. We'll spawn projectiles inside gameplay abilities so that if our ability is rejected by the server, we can reconcile the missed prediction by destroying our fake projectile. We'll handle other prediction logic on our own; we're just using GAS to predict the actual spawning of the projectile. We'll also leverage GAS's "target data" replication system to link our projectiles together.
 
-We're also using GAS because, if you have a game complex enough to necessitate projectile prediction, you're hopefully already using GAS as your gameplay framework.
+If you have a game complex enough to necessitate projectile prediction, you're hopefully already using GAS as your gameplay framework.
 {: .notice--info}
 
 ### Initialization
 
 On the server, when our real projectile is spawned, it will be forward-predicted to about halfway between where it was spawned on the server and where it would be on the client that fired it (i.e. halfway between where it spawned and where the fake projectile _currently_ is).
 
-On remote clients, when the real projectile is replicated, it will be rewound to its spawn location and resimulated, so it doesn't appear to have jumped forward in time.
+On remote clients, when the real projectile is replicated, it will be rewound to its spawn location and resimulated.
 
 ### Projectile Logic
 
