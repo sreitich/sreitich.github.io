@@ -389,6 +389,9 @@ FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParams
 Note that we're making the `Instigator` our ASC's avatar (the player's pawn) and the `Owner` our ASC's owner (which is usually the player state). This will be important when we implement our `AProjectile` class.
 {: .notice--info}
 
+No, `CustomPreSpawnInitalization` is not a mistake; it's a typo in Unreal's source code.
+{: .notice--info}
+
 Now, back in `Activate`, we can use these parameters to spawn our fake projectile, after generating a new ID for it. (For now, we're assuming that our ping is low-enough to forward-predict without delaying our spawn.)
 
 {% highlight c++ %}
@@ -508,6 +511,9 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
                     // ...
 }
 {% endhighlight %}
+
+We'll be using the `Verbose` verbosity so our output log doesn't get spammed with projectile information when we're not actively trying to debug it. To see `Verbose` or `VeryVerbose` messages, you need to raise the log channel's verbosity level using the `log LogProjectiles verbose` or `log LogProjectiles veryverbose` console commands.
+{: .notice--info}
 
 ### Deferring the Spawn
 
@@ -1088,4 +1094,6 @@ Now, since the server will always reject the ability, we should see our client's
 
 ## What's Next
 
-Now that we have a task for spawning our projectiles, we'll be implementing the projectile class itself, and we'll be adding a couple of things to this task to make sure that projectile is being properly initialized.
+Both of our projectiles are now being properly spawned, but we still need to finish linking them together before we can start implementing any logic.
+
+In the next section. we'll begin implementing the `AProjectile` class (and finishing some missing code in this class) to link the fake and authoritative projectiles together once they're spawned.
