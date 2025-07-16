@@ -70,9 +70,33 @@ To learn why this, unintuitively, does _not_ cause synchronization issues, see [
 
 Given the complex nature of projectile prediction, we've implemented a variety of tools to help with debugging, in addition to extensive debug logging. These tools are defined in a `UDeveloperSettingsBackedByCVars` class called `GASDeveloperSettings` (since, technically, this projectile implementation is part of the Gameplay Ability System).
 
-These settings allow for the configuration of a variety of debugging options:
+These settings allow for the configuration of a variety of debugging options.
 
-- `ProjectileDebugMode`: Will enable 
+`ProjectileDebugMode` will draw the position of projectiles at regular timestamps throughout their trajectory. Depending on the setting, we can filter which types of projectiles are debugged:
+
+ - `PredictedVersusClient`: Draws the trajectory of the fake projectile and the owning client's version of the authoritative projectile (i.e. where the authoritative projectile would appear for the client that fired the projectile, if it were not hidden).
+  - `ClientVersusServer`: Draws the trajectory of the owning client's version of the authoritative projectile and the server's version of the authoritative projectile (i.e. where the authoritative projectile _actually_ is).
+  - `All`: Draws The fake projectile, the owning client's version of the authoritative projectile, and the server's version of the authoritative projectile.
+
+When making `PredictedVersusClient` draws, we also draw arrows between the projectiles' corresponding time steps, to show the difference in their positions at each point in their trajectory. When we sync the projectiles over time, we can see this distance become smaller and smaller, until the two are eventually synced, indicated by a change in color:
+
+TODO
+
+And if `bWaitForLinkage` is enabled, we won't start drawing until the fake and authoritative projectiles have been linked. If it's disabled, we'll always see a few unlinked fake projectile draws, since the fake projectile is always spawned earlier:
+
+TODO
+
+`bDrawSpawnPosition` and `bDrawFinalPosition` help us debug projectile spawns and hits, by showing the starting and ending position of each projectile, including the AOE radius of projectiles with area effects:
+
+TODO
+
+When debugging projectile synchronization, we can log each lerp step performed by enabling `bLogCorrection`:
+
+TODO
+
+Lastly, we can adjust the frequency, duration, and color of each draw with the remaining `Draw` and `Color` settings:
+
+TODO (e.g. drawing server at a high frequency)
 
 ## Movement
 
