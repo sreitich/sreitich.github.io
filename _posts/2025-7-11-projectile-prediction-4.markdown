@@ -10,7 +10,7 @@ last_modified_at: 2025-07-15
 
 The fourth and final part of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the implementation of a base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](...).
+The code for which this article provides an overview can be found on [Unreal Engine's Learning site](...). Additionally, a more concise explanation of this code can be found at the [official documentation page](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
 {: .notice--info}
 
 ## Introduction
@@ -128,13 +128,15 @@ We use the `Collision` collider as the projectile movement component's `UpdatedC
 
 ### Detonation
 
+The single most important event of a projectile's lifetime is its "detonation." This event occurs when a projectile impacts a valid target, or when it stops moving (because it hit a wall, was stopped by friction, ran out of bounces, etc.), at which point it will typically apply its gameplay effects, trigger any desired FX, and destroy itself.
+
 When a projectile hits a valid target (how "valid" targets are determined is detailed in [_Effects_](#effects)), we call this a "direct impact" or a "successful hit." This is triggered by the `Hitbox` collider overlapping an actor that passes the "valid target" check.
 
-When a projectile hits an _invalid_ target (i.e. the environment, like a static mesh actor), this is called a "missed impact." Projectiles that can bounce off the environment won't have a "missed impact" until they hit the environment after running out of bounces, though bouncing projectiles will always detonate when hitting a valid target, regardless of their remaining bounces. This event is triggered when the `Collision` collider hits a blocking surface; since this collider is the movement component's `UpdatedComponent`, this will trigger the `OnStop` event, which is what invokes the "missed impact."
+When a projectile stops moving _without_ having hit a valid target, this is called a "missed impact," and this occurs when the movement component's `OnStop` event is invoked. This event can be triggered by the `Collision` collider hitting a (non-target) blocking surface (since this collider is the movement component's `UpdatedComponent`), a bouncing projectile running out of bounces or reaching its `StopSimulatingThreshold` (due to friction), etc.
 
-Both a direct impact _and_ a missed impact will cause the projectile to "detonate." This is the final event of a projectile's lifetime, at which point the projectile usually applies its gameplay effects, triggers any desired FX, and destroys itself.
+Both a direct impact _and_ a missed impact will cause the projectile to "detonate."
 
-This is the single most important event of a projectile's lifetime, and, as such, it's crucial that it's synchronized across all machines. All the methods used to ensure this synchronization and handle missed predictions are detailed in the [_Reconciliation section_](#detonation--reconciliation).
+This is the single most important event of a projectile's lifetime, and, as such, it's crucial that it's synchronized across all machines. All the methods used to ensure this synchronization and handle missed predictions are detailed in the [_Reconciliation section_](#missed-prediction-reconciliation).
 {: .notice--info}
 
 ## Effects
@@ -195,10 +197,68 @@ TODO
 Regardless of `bPredictFX`, we never predict gameplay effects. Since we use a gameplay cue tied to the `ImpactGameplayEffect` for "direct impact" FX, this means these FX are never predicted. This is intentional, since we want our damage (which we also don't predict), hitmarker, FX, and reaction animations to be synced together, and because hit-impact missed predictions are really irritating for players. From what I've seen, this is a fairly conventional approach in games: predicting FX except for ones that indicate damage (blood splatters, star particles, etc.).
 {: .notice--info}
 
-## Detonation & Reconciliation
+## Missed Prediction Reconciliation
 
-Since we're simulating our projectile's movement locally (as opposed to replicating the projectile movement), having two projectiles that aren't synchronized could cause them to hit different targets. For example, if the fake projectile is ahead the real one (since it's fired first), an enemy could move into the path of the projectile after the first one has passed it, but still get hit by the second one):
+As mentioned before, a projectile's "detonation" is the single most important event of a projectile's lifetime, and it's crucial that this event is executed correctly on all machines.
+
+To make sure of this, there are a number of potential missed predictions we account for on the owning client.
+
+### Premature Detonation
+
+Since we're simulating our projectile's movement locally (as opposed to replicating movement), having two projectiles that aren't perfectly synchronized can cause them to hit different targets. For example, if the fake projectile is ahead of the real one (since it's fired first), if an enemy moves through the path of the projectile, they may be _in_ the path of the projectile when the fake projectile reaches them, but be _out_ of the path when the real projectile catches up. This would result in the fake projectile hitting the enemy, but the real one missing them:
 
 TODO
 
-### Resimulation for Remote Proxies
+To detect this, after the fake projectile detonates, it sets a short timer (determined by ping) called `SwitchToAuthTimer`. If the corresponding authoritative projectile hasn't detonated when the timer ends, that means the fake projectile detonated prematurely.
+
+To reconcile this, we immediately destroy the fake projectile and switch to the authoritative projectile (i.e. we make the replicated authoritative projectile visible on the owning client, and use it for all visuals going forward):
+
+TODO
+
+### Late Detonation
+
+For the same reason as the previous case, it's possible for the _authoritative_ projectile to hit something that the _fake_ projectile missed. For example, if an enemy moves into the path of the projectile _after_ the fake projectile has passed, but _before_ the real projectile has caught up:
+
+TODO
+
+To detect this, when the authoritative projectile detonates, we can simply check whether the fake projectile has also detonated. If it hasn't, the fake projectile likely missed whatever the real projectile hit.
+
+To reconcile this case, we do the same thing as before: destroy the fake projectile and switch to the real one:
+
+TODO
+
+Since the projectile should detonate at this point, we're not really "switching" to the authoritative projectile. Rather, we're just using its detonation effects (which would be otherwise hidden, unless `bPredictFX` was false), instead of waiting for the fake projectile to detonate.
+
+Note that when this occurs, it isn't _necessarily_ a missed prediction. It's possible that the fake projectile may have _just_ been about to detonate, but ended up slightly behind the authoritative projectile. This can happen if our ping estimates are slightly off, causing us to fast-forward the authoritative projectile too far, causing it to end up ahead of the fake one.
+<br>
+Regardless, in this situation, swapping out the fake projectile for the real one is harmless, so this doesn't pose an issue. Detonation effects triggered by the fake and authoritative projectile are always be identical (since they'll be in the same location, as per the next case), so there won't be any visual discrepancies.
+{: .notice--info}
+
+### Inaccurate Detonation
+
+Just because the fake and authoritative projectile detonate around the same time doesn't mean they detonated at the same location. At high latencies, in particular, it's possible that both projectiles detonated within an acceptable timespan, but did so in different locations.
+
+For example, if the authoritative projectile missed the fake projectile's target, but hit something directly behind it, the mistake wouldn't be caught, since the authoritative projectile may still have detonated before the `SwitchToAuthTimer` ended:
+
+TODO
+
+To account for this, once the authoritative projectile detonates, if the fake projectile has also detonated, we check to see _where_ it detonated. If the two projectiles detonated a considerable distance apart, then the fake projectile likely hit the wrong target, and we once again destroy the fake projectile, and use the authoritative projectile's effects.
+
+### Lost Projectile
+
+Finally, it's possible for either the fake or the authoritative projectile to lose its reference to the other. This can happen if the fake projectile detonated so prematurely that it was destroyed by the time the authoritative projectile detonated (since projectiles usually destroy themselves after detonating), or the authoritative projectile detonated so early (likely on spawn) that it hasn't even been linked yet. And without a reference to the other projectile, it becomes impossible to check for missed predictions:
+
+TODO
+
+Fortunately, the former case is already handled by the [_Premature Detonation_ detection method](#premature-detonation): destruction is always deferred until `SwitchToAuthTimer` has had enough time to finish. When the authoritative projectile eventually detonates, we'll have already switched to it, and we'll just replay the detonation effects in the correct location.
+
+The latter situation is handled by deferring the detonation event. The replicated authoritative projectile is linked to its corresponding fake projectile on spawn, in `BeginPlay`. So, if we attempt to call `Detonate` _before_ the projectile has been fully spawned (i.e. before `BeginPlay`), we won't execute it. Instead, we'll wait until `BeginPlay` is called (to ensure our projectiles get linked), and then try to detonate it again.
+
+This is deferment is handled via the `TornOff` event. This function is called when a projectile detonates on the server, is propagated to clients, and will always be called _after_ `BeginPlay` (since there needs to have been enough time for an initial replication tick). If we call `Detonate` too early, we wait until we receive the `TornOff` event, and then try to detonate again, since we're guaranteed to have called `BeginPlay` at that point.
+
+This second detonation should always succeed, and will either be a successful prediction (if the fake projectile, which has now been linked, has already detonated in the same location) or a missed prediction that will be caught by one of the above reconciliation methods, since our projectiles are now guaranteed to have been linked.
+
+## Remote Proxy Resimulation
+
+
+### Reconciliation
