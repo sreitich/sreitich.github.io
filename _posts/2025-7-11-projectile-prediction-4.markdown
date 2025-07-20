@@ -5,7 +5,7 @@ excerpt: A breakdown of the base projectile's features and reconciliation techni
 header:
     teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
 author: Meta
-last_modified_at: 2025-07-15
+last_modified_at: 2025-07-20
 ---
 
 The fourth and final part of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the implementation of a base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.

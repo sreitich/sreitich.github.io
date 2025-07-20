@@ -3,7 +3,7 @@ layout: single
 title: "Projectile Prediction: Part 1"
 excerpt: An exploration of the theory behind projectile prediction.
 header:
-    teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
+    teaser: /assets/images/per-post/projectile-prediction-1/projectile-prediction-1-teaser.png
 author: Meta
 last_modified_at: 2025-07-03
 ---
