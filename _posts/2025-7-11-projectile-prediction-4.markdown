@@ -258,7 +258,59 @@ This is deferment is handled via the `TornOff` event. This function is called wh
 
 This second detonation should always succeed, and will either be a successful prediction (if the fake projectile, which has now been linked, has already detonated in the same location) or a missed prediction that will be caught by one of the above reconciliation methods, since our projectiles are now guaranteed to have been linked.
 
-## Remote Proxy Resimulation
+## Remote Client Reconciliation
 
+On remote clients (the clients that didn't fire the projectile), the replicated authoritative projectile also simulates its movement and hit detection locally. To mitigate any synchronization issues this may cause, we use the `TornOff` event. When the server's projectile detonates and tears off, the `TornOff` event is propagated to clients, which forces them to detonate if they haven't done so already.
 
-### Reconciliation
+This is similar to firing a `DetonateIfNotDetonated` RPC, but we choose to use the tear-off framework instead because of replication timing; `TornOff` will always be called after `BeginPlay` _and_ the actor's initial replication update, which makes accounting for edge cases easier, since we can guarantee the order of events.
+
+When the server's projectile is torn off, it sends a final movement replication update (mentioned in the [_Movement_ section](#movement)), which ensures the projectile detonates in the correct location on clients.
+
+The server's projectile will also send clients a collection of information specifying how the detonation occurred (e.g. the direction of the hit), in the form of a struct called `DetonationInfo`. If a client's projectile hasn't detonated yet and must be detonated by `TornOff`, `DetonationInfo` will be used to fill the detonation's parameters, since it won't have reliable data locally.
+
+### Rewinding
+
+On remote clients, due to latency and forward-prediction, projectiles will often appear a noticeable distance ahead of where they spawned—or, if the projectile detonates too quickly, not at all:
+
+TODO (appearing far ahead, and not appearing at all)
+
+To fix this, when a projectile is replicated to a remote client, it is rewound back to its spawn position and then resimulated (which is done by simply teleporting the projectile back to its spawn transform in `BeginPlay`):
+
+TODO
+
+When the projectile's detonation is propagated to the client, we need to make sure it's had enough time to catch up to the location of the detonation. To do this, in `DetonationInfo`'s `OnRep` function, we set a short timer called `FinishedResimulationTimer`, depending on how far the projectile is from the detonation location. Once that timer ends, the projectile will be detonated with `DetonationInfo`.
+
+We do this in the `OnRep` instead of `TornOff` because `DetonationInfo` is set as soon as the server's projectile detonates, but `TornOff` is often delayed to make sure there's been enough time to send an initial replication update, which messes with our timing. At this point, `TornOff` is used as a last resort, if the projectile somehow doesn't reach its final location and detonate by the time it's torn off.
+{: .notice--info}
+
+TODO
+
+### Resimulation
+
+Lastly, we want to account for when a projectile detonates so quickly that it _never_ appears on clients.
+
+This isn't a technical issue (we already account for projectiles that detonate too quickly, as detailed in the [_Lost Projectile_ section](#lost-projectile)), but more a quality-of-life one. The projectile is detonating properly; we just never see it, since it's detonating right when it spawns.
+
+To fix this, we define a value called `MinLifetime`, which defines the minimum amount of time that we want a projectile to be visible for.
+
+In `DetonationInfo`'s `OnRep`, when we'd normally detonate the projectile, we check to see how long the projectile has been alive for.
+
+If the projectile hasn't even finished spawning (meaning it hasn't even been rewound yet), we teleport it back to its spawn transform and slow its velocity, such that it will take `MinLifetime` to reach the detonation location (We also set a flag to prevent `BeginPlay` from rewinding it again when it's eventually called.)
+
+If the projectile _has_ finished spawning, but hasn't been alive for `MinLifetime`, we'll just slow its velocity, such that by the time it reaches the detonation location, it will have been alive for `MinLifetime`.
+
+TODO
+
+Lastly, if the projectile has been alive for at least `MinLifetime`, we'll execute the detonation as usual.
+
+## Conclusion
+
+Well, with all of those components broken down, that concludes this four-part series on projectile prediction. Let's take one final look at the difference projectile prediction makes (just to convince you that all of this isn't worthless):
+
+TODO
+
+When I went to implement projectile prediction for my game, I had an impossible time finding any remotely relevant resources on the topic. This solution came from looking at open-source projects (like [Unreal Tournament](https://github.com/JimmieKJ/unrealTournament/tree/clean-master)), using network limiters to reverse-engineer various games, scrubbing through netcode GDC talks for _any_ mention of projectiles, and—more than anything else—a lot of trial-and-error.
+
+I went through the effort of writing this lengthy series just because I wanted to put _some_ kind of resource out there to help those trying to implement projectile prediction, since it's such a common feature.
+
+So, I really hope some of this was useful, and I hope it caused your experience with projectile prediction and network programming to be a little less blind and helpless than mine was.
