@@ -3,9 +3,9 @@ layout: single
 title: "Projectile Prediction: Part 3"
 excerpt: Linking fake and authoritative projectile actors.
 header:
-    teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
+    teaser: /assets/images/per-post/projectile-prediction-3/projectile-prediction-3-teaser.png
 author: Meta
-last_modified_at: 2025-07-11
+last_modified_at: 2025-07-22
 ---
 
 The third part of a series exploring and implementing projectile prediction for multiplayer games. This part walks through initializing the base `AProjectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
@@ -214,8 +214,9 @@ FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParams
 
 Now, our projectiles should both be getting spawned _and_ linked together. We'll know that they are if we get the `Successfully replicated...` debug message on the server, and don't get an `ensure` error.
 
-Remember to raise the `LogProjectiles` channel's verbosity level to `Verbose` or `VeryVerbose`.
+Remember to raise the `LogProjectiles` channel's verbosity level to `Verbose` or `VeryVerbose` with the `log LogProjectiles Verbose` command.
 {: .notice--info}
 
 ### What's Next
 
+Now that we have our projectiles spawned and linked, all we need to do is implement the `AProjectile` class itself. You can do this however you want, but in the next and final section of this series, I'll break down the highly configurable implementation we use for all of the projectiles in _Cloud Crashers_, which includes features like projectile movement, hit detection, effects, and reconciliation.
