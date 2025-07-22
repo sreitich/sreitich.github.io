@@ -13,7 +13,7 @@ Part 1 of a series exploring and implementing projectile prediction for multipla
 This tutorial uses Unreal Engine for its code, but the theory and techniques are applicable for any game engine.
 {: .notice--info}
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](...). This is a complex topic, so the subsequent posts, which walk through the code implementation, are extremely long-winded, since I want to provide a detailed explanation of how every part of this system works. If you aren't interested in an extensive walkthrough, it may be easier to copy the code directly, and use these posts as a reference for explanations on anything you don't understand.
+If you just want the final code, it can be found on [Unreal Engine's Learning site](TODO). This is a complex topic, so the subsequent posts, which walk through the code implementation, are extremely long-winded, since I want to provide a detailed explanation of how every part of this system works. If you aren't interested in an extensive walkthrough, it may be easier to copy the code directly, and use these posts as a reference for explanations on anything you don't understand.
 {: .notice--info}
 
 ## Introduction
@@ -30,11 +30,15 @@ Projectile prediction is the client-side prediction performed when a client fire
 For disambiguation, the term "projectile prediction" can also refer to the indicators that appear when players are preparing to throw or shoot something, showing them the trajectory in which their projectile will travel. This is a separate, unrelated topic that we aren't covering here.
 {: .notice--info}
 
-However, this ends up being a lot more complex than predicting simple actions (like ray-tracing a gunshot or triggering a particle effect): projectiles are actual _actors_; they have complex hit detection, physics simulations, and a myriad of potential side effects that can be triggered during their lifespan (like an explosion when landing). If we were to simply spawn the client's version of the projectile instantly, we would quickly discover synchronization issues and visual discrepancies (which we'll see later on).
+In this series, we'll examine the theory behind projectile prediction, and walk through implementing our own robust projectile system that mitigates latency and improves responsiveness, without sacrificing fairness:
 
-Like most things in game development, there's no universal solution to this problem. Different games implement client-side prediction in a different way, specifically suited to the needs of the project. So before we design and implement our own, let's start by looking at some possible approaches.
+TODO
 
 ## Possible Approaches
+
+Unfortunately, projectile prediction ends up being a lot more complex than predicting simple actions (like ray-tracing a gunshot or triggering a particle effect): projectiles are actual _actors_; they have complex hit detection, physics simulations, and a myriad of potential side effects that can be triggered during their lifespan (like an explosion when landing). If we were to simply spawn the client's version of the projectile instantly, we would quickly discover synchronization issues and visual discrepancies (which we'll see later on).
+
+Like most things in game development, there's no universal solution to this problem. Different games implement client-side prediction in a different way, specifically suited to the needs of the project. So before we design and implement our own, let's start by looking at some possible approaches.
 
 ### No Prediction
 
@@ -127,7 +131,7 @@ You might think that this will cause synchronization issues, since the remote cl
 
 Each of these approaches is a decent model for a projectile prediction system. Some are better than others, but they all have pros and cons, and you can probably find examples of each in various games.
 
-In the subsequent parts of this series, I'll walk through designing and implementing our own projectile prediction system using Unreal Engine and the Gameplay Ability System. We'll be using the latter of the above models: _Partial Fast-Forwarding with Synchronization and Resimulation_, but our system will be highly configurable, so it should be well-suited for a wide range of projects. And, of course, you can modify it to your needs.
+In the subsequent parts of this series, we'll walk through designing and implementing our own projectile prediction system using Unreal Engine and the Gameplay Ability System. We'll be using the latter of the above models: _Partial Fast-Forwarding with Synchronization and Resimulation_, but our system will be highly configurable, so it should be well-suited for a wide range of projects. And, of course, you can modify it to your needs.
 
 We'll only be using the Gameplay Ability System so we can hook into its prediction system to spawn our projectiles. If your project doesn't use GAS, you can still use this system; you'll just have to spawn the projectiles your own way.
 {: .notice--info}

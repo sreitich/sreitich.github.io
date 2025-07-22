@@ -3,14 +3,14 @@ layout: single
 title: "Projectile Prediction: Part 2"
 excerpt: Predictively spawning projectiles with the Gameplay Ability System.
 header:
-    teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
+    teaser: /assets/images/per-post/projectile-prediction-2/projectile-prediction-2-teaser.png
 author: Meta
 last_modified_at: 2025-07-09
 ---
 
 Part 2 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through how to predictively spawn projectile actors using the Gameplay Ability System in Unreal Engine.
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](...). Again, this is a long-winded and detailed walkthrough of the entire code. If that's not something you're interested in, it may be easier to copy the code, and use this page as a reference for explanations on anything that's unclear.
+If you just want the final code, it can be found on [Unreal Engine's Learning site](TODO). Again, this is a long-winded and detailed walkthrough of the entire code. If that's not something you're interested in, it may be easier to copy the code, and use this page as a reference for explanations on anything that's unclear.
 {: .notice--info}
 
 ## Introduction
@@ -27,11 +27,14 @@ Using an ability task will let us hook into GAS's prediction system, which we ca
 
 Let's start by creating our base projectile class. We won't be doing anything with it yet, but we want to be able to reference it in our task. This will be a subclass of `Actor` named `Projectile`.
 
-TODO: Creating a projectile class.
+![Projectile class wizard]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-2/projectile-class-wizard.png){: .align-center}
 
 Next, let's create the ability task. Each ability task node needs its own class, so we'll create a subclass of `AbilityTask` named `AbilityTask_SpawnPredictedProjectile` The `AbilityTask_` prefix is the standard naming convention for ability task classes.
 
-TODO: Creating an ability task class.
+![Ability task class wizard]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-2/ability-task-class-wizard.png){: .align-center}
+
+Unreal's class wizard won't let you make a class with a name this long. To work around this, name the class something like `SpawnProjectile`, then rename the class _and_ the file to `AbilityTask_SpawnPredictedProjectile` after it's added.
+{: .notice--info}
 
 Let's start by declaring a constructor and overriding the `Activate` function.
 
@@ -655,7 +658,13 @@ void UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile()
 
 And with that, our fake projectile should be getting spawned successfully:
 
-TODO: Fake projectile being spawned.
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-2/spawning-fake-projectile.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+I don't have any animations for these abilities yet, so I'm using an input debugger to indicate exactly when the input is pressed, to show that the projectile appears instantly for the player.
+{: .notice--info}
 
 ## Spawning the Authoritative Projectile
 
@@ -667,7 +676,7 @@ If we were to use the same spawn parameters given in our constructor, our author
 
 If we were to set up our task like so:
 
-TODO: task using local inputs
+![Spawning task using local parameters]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-2/task-with-local-inputs.png){: .align-center}
 
 ... the parameters would be different on the client and the server; if we had `60ms` of ping, then the server would read those values `30ms` later, and thus end up with different values than the client read when it activated `30ms` prior.
 
@@ -1082,15 +1091,21 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
 
 Now, we should _finally_ have our finished task. We should now be seeing a fake projectile being spawned on clients, and an authoritative projectile being spawned on servers:
 
-// TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-2/final-task-demo.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 We can even test our rejection handling by adding the following script to our ability's `CanActivate` function:
 
-// TODO
+![Script to reject ability activation on the server only]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-2/rejection-test-script.png){: .align-center}
 
 Now, since the server will always reject the ability, we should see our client's fake projectile being destroyed by the rejection:
 
-// TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-2/task-rejection-testing.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 ## What's Next
 
