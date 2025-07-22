@@ -13,6 +13,9 @@ Part 2 of a series exploring and implementing projectile prediction for multipla
 If you just want the final code, it can be found on [Unreal Engine's Learning site](TODO). Again, this is a long-winded and detailed walkthrough of the entire code. If that's not something you're interested in, it may be easier to copy the code, and use this page as a reference for explanations on anything that's unclear.
 {: .notice--info}
 
+This code was written for a game called [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/), and uses project-specific classes named as such. For your game, you'll need to replace classes like `ACrashPlayerController` and `UCrashAbilitySystemComponent` with your game's respective player controller and ASC classes.
+{: .notice--info}
+
 ## Introduction
 
 In the previous section of this series, we looked at the model we'll be using for our projectile prediction system, and a short overview of the system itself.
@@ -174,7 +177,7 @@ Lastly, we'll need to define two functions: `GetForwardPredictionTime` and `GetP
 `GetProjectileSleepTime` will return the amount of time, if any, that we should _delay_ spawning our projectiles, in case our ping exceeds `MaxPredictionPing`.
 
 {% highlight c++ %}
-// MyPlayerController.h
+// CrashPlayerController.h
 
 public:
 
@@ -207,9 +210,9 @@ To be able to tweak these values in `DefaultGame.ini` (which is the purpose of t
 {: .notice--info}
 
 {% highlight c++ %}
-// MyPlayerController.cpp
+// CrashPlayerController.cpp
 
-AMyController::AMyController()
+ACrashPlayerController::ACrashPlayerController()
 {
     // Constructor code...
 
@@ -218,13 +221,13 @@ AMyController::AMyController()
     MaxPredictionPing = 120.0f;
 }
 
-float AMyController::GetForwardPredictionTime() const
+float ACrashPlayerController::GetForwardPredictionTime() const
 {
     // Divide by 1000 to convert ping from ms to s.
     return (PlayerState && (GetNetMode() != NM_Standalone)) ? (0.001f * ClientBiasPct * FMath::Clamp(PlayerState->ExactPing - (IsLocalController() ? 0.0f : PredictionLatencyReduction), 0.0f, MaxPredictionPing)) : 0.f;
 }
 
-float AMyController::GetProjectileSleepTime() const
+float ACrashPlayerController::GetProjectileSleepTime() const
 {
     // At high latencies, projectiles won't be spawned until they can be forward-predicted at the maximum prediction ping.
     return 0.001f * FMath::Max(0.0f, PlayerState->ExactPing - PredictionLatencyReduction - MaxPredictionPing);
@@ -240,7 +243,7 @@ An easy way to do this is by assigning each projectile a replicated "ID." Each t
 Let's start by reserving a value to represent projectiles _without_ an ID (i.e. any projectiles on other clients, and projectiles fired by listen servers, since they won't have a fake projectile, and thus have no need to link to one).
 
 {% highlight c++ %}
-// MyPlayerController.h, above the class definition
+// CrashPlayerController.h, above the class definition
 
 #define NULL_PROJECTILE_ID 0
 {% endhighlight %}
@@ -251,7 +254,7 @@ I might switch to using a `TOptional` to represent IDs in the future so my profe
 Now we can add variables for storing our projectiles and tracking our IDs, and a function to generate new IDs.
 
 {% highlight c++ %}
-// MyPlayerController.h
+// CrashPlayerController.h
 
 public:
 
@@ -270,9 +273,9 @@ private:
 {% endhighlight %}
 
 {% highlight c++ %}
-// MyPlayerController.cpp
+// CrashPlayerController.cpp
 
-AMyController::AMyController()
+ACrashPlayerController::ACrashPlayerController()
 {
     // Constructor code...
 
@@ -309,7 +312,7 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
     
     if (Ability && Ability->GetCurrentActorInfo())
     {
-        if (AMyPlayerController* PC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
+        if (ACrashPlayerController* CrashPC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<ACrashPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
         {
         }
     }
@@ -325,9 +328,9 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
     
     if (Ability && Ability->GetCurrentActorInfo())
     {
-        if (AMyPlayerController* PC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
+        if (ACrashPlayerController* CrashPC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<ACrashPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
         {
-            const float ForwardPredictionTime = PC->GetForwardPredictionTime();
+            const float ForwardPredictionTime = CrashPC->GetForwardPredictionTime();
             const bool bShouldPredict = (ForwardPredictionTime > 0.0f);
             const bool bIsNetAuthority = Ability->GetCurrentActorInfo()->IsNetAuthority();
             const bool bShouldUseServerInfo = IsLocallyControlled();
@@ -370,8 +373,8 @@ FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParams
 FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParamsForFake(const uint32 ProjectileId) const
 {
     FActorSpawnParameters Params = GenerateSpawnParams();
-    AMyPlayerController* PC = Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController);
-    Params.CustomPreSpawnInitalization = [ProjectileId, PC](AActor* Actor)
+    ACrashPlayerController* CrashPC = Cast<ACrashPlayerController>(Ability->GetCurrentActorInfo()->PlayerController);
+    Params.CustomPreSpawnInitalization = [ProjectileId, CrashPC](AActor* Actor)
     {
         // TODO: Initialize projectile ID.
     };
@@ -404,9 +407,9 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
     
     if (Ability && Ability->GetCurrentActorInfo())
     {
-        if (AMyPlayerController* PC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
+        if (ACrashPlayerController* CrashPC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<ACrashPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
         {
-            const float ForwardPredictionTime = PC->GetForwardPredictionTime();
+            const float ForwardPredictionTime = CrashPC->GetForwardPredictionTime();
             const bool bShouldPredict = (ForwardPredictionTime > 0.0f);
             const bool bIsNetAuthority = Ability->GetCurrentActorInfo()->IsNetAuthority();
             const bool bShouldUseServerInfo = IsLocallyControlled();
@@ -414,7 +417,7 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
             if (!bIsNetAuthority && bShouldPredict)
             {
 				// If our ping is low enough to forward-predict, immediately spawn and initialize the fake projectile.
-                const uint32 FakeProjectileId = PC->GenerateNewFakeProjectileId();
+                const uint32 FakeProjectileId = CrashPC->GenerateNewFakeProjectileId();
                 if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, GenerateSpawnParamsForFake(FakeProjectileId)))
                 {
                     if (ShouldBroadcastAbilityTaskDelegates())
@@ -470,7 +473,7 @@ protected:
 Lastly, we should start adding some debug information. Let's create a new log category called `LogProjectiles` to write our debug information. You can put this code anywhere, but a good place is a dedicated `Logging` file.
 
 {% highlight c++ %}
-// MyGameLogging.h
+// CrashLogging.h
 
 /** Log channel for the projectile prediction system. */
 GAME_API DECLARE_LOG_CATEGORY_EXTERN(LogProjectiles, Log, All);
@@ -483,7 +486,7 @@ GAME_API DECLARE_LOG_CATEGORY_EXTERN(LogProjectiles, Log, All);
 {% endhighlight %}
 
 {% highlight c++ %}
-// MyGameLogging.cpp
+// CrashLogging.cpp
 
 DEFINE_LOG_CATEGORY(LogProjectiles);
 {% endhighlight %}
@@ -497,7 +500,7 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
 {
                     // ...
 
-                    PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned fake projectile (%s) on time. Attempting to forward-predict (%fms) with ping (%fms). Client bias: (%i%%)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), FakeProjectileId, *GetNameSafe(NewProjectile), ForwardPredictionTime * 1000.0f, PC->PlayerState->ExactPing, (uint32)(PC->ClientBiasPct * 100.0f));
+                    PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned fake projectile (%s) on time. Attempting to forward-predict (%fms) with ping (%fms). Client bias: (%i%%)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), FakeProjectileId, *GetNameSafe(NewProjectile), ForwardPredictionTime * 1000.0f, CrashPC->PlayerState->ExactPing, (uint32)(CrashPC->ClientBiasPct * 100.0f));
 
                     // Cache the projectile in case the server rejects this task, and we have to destroy it.
                     SpawnedFakeProj = NewProjectile;
@@ -549,7 +552,7 @@ struct FDelayedProjectileInfo
     FRotator SpawnRotation;
     
     UPROPERTY()
-    TWeakObjectPtr<AMyPlayerController> PC;
+    TWeakObjectPtr<ACrashPlayerController> CrashPC;
     
     UPROPERTY()
     uint32 ProjectileId;
@@ -557,8 +560,8 @@ struct FDelayedProjectileInfo
     FDelayedProjectileInfo() :
         ProjectileClass(nullptr),
         SpawnLocation(ForceInit),
-        SpawnRotation(ForceInit),
-        PC(nullptr),
+        SpawnRotation(ForceInit), 
+        CrashPC(nullptr),
         ProjectileId(0)
     {}
 };
@@ -602,7 +605,7 @@ Now, in our `Activate` function, before we try spawning the fake projectile, che
             {
                 /* On clients, if our ping is too high to forward-predict, delay spawning the projectile so we don't
                  * forward-predict further than MaxPredictionPing. */
-                float SleepTime = PC->GetProjectileSleepTime();
+                float SleepTime = CrashPC->GetProjectileSleepTime();
                 if (SleepTime > 0.0f)
                 {
                     if (!GetWorld()->GetTimerManager().IsTimerActive(SpawnDelayedFakeProjHandle))
@@ -611,18 +614,18 @@ Now, in our `Activate` function, before we try spawning the fake projectile, che
                         DelayedProjectileInfo.ProjectileClass = ProjectileClass;
                         DelayedProjectileInfo.SpawnLocation = SpawnLocation;
                         DelayedProjectileInfo.SpawnRotation = SpawnRotation;
-                        DelayedProjectileInfo.PC = PC;
-                        DelayedProjectileInfo.ProjectileId = PC->GenerateNewFakeProjectileId();
+                        DelayedProjectileInfo.CrashPC = CrashPC;
+                        DelayedProjectileInfo.ProjectileId = CrashPC->GenerateNewFakeProjectileId();
                         GetWorld()->GetTimerManager().SetTimer(SpawnDelayedFakeProjHandle, this, &UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile, SleepTime, false);
                         
-                        PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Spawning fake projectile delayed. Ping (%fms) exceeds maximum prediction time. Sleeping for (%fms) to forward-predict with maximum time (%fms) and latency reduction (%fms)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), DelayedProjectileInfo.ProjectileId, PC->PlayerState->ExactPing, SleepTime * 1000.0f, ForwardPredictionTime * 1000.0f, PC->PredictionLatencyReduction);
+                        PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Spawning fake projectile delayed. Ping (%fms) exceeds maximum prediction time. Sleeping for (%fms) to forward-predict with maximum time (%fms) and latency reduction (%fms)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), DelayedProjectileInfo.ProjectileId, CrashPC->PlayerState->ExactPing, SleepTime * 1000.0f, ForwardPredictionTime * 1000.0f, CrashPC->PredictionLatencyReduction);
                     }
                     
                     return;
                 }
                 
                 // If our ping is low enough to forward-predict, immediately spawn and initialize the fake projectile.
-                const uint32 FakeProjectileId = PC->GenerateNewFakeProjectileId();
+                const uint32 FakeProjectileId = CrashPC->GenerateNewFakeProjectileId();
     
                 // ...
 {% endhighlight %}
@@ -632,11 +635,11 @@ When that timer ends, all we have to do is spawn the projectile using our cached
 {% highlight c++ %}
 void UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile()
 {
-    if (Ability && Ability->GetCurrentActorInfo() && DelayedProjectileInfo.PC.IsValid())
+    if (Ability && Ability->GetCurrentActorInfo() && DelayedProjectileInfo.CrashPC.IsValid())
     {
-        if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(DelayedProjectileInfo.ProjectileClass, DelayedProjectileInfo.SpawnLocation, DelayedProjectileInfo.SpawnRotation, GenerateSpawnParamsForFake(DelayedProjectileInfo.ProjectileId, DelayedProjectileInfo.PC.Get())))
+        if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(DelayedProjectileInfo.ProjectileClass, DelayedProjectileInfo.SpawnLocation, DelayedProjectileInfo.SpawnRotation, GenerateSpawnParamsForFake(DelayedProjectileInfo.ProjectileId, DelayedProjectileInfo.CrashPC.Get())))
         {
-            PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned fake projectile (%s) delayed. Attempting to forward-predict (%fms) with ping (%fms)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), DelayedProjectileInfo.ProjectileId, *GetNameSafe(NewProjectile), DelayedProjectileInfo.PC->GetForwardPredictionTime() * 1000.0f, DelayedProjectileInfo.PC->PlayerState->ExactPing);
+            PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned fake projectile (%s) delayed. Attempting to forward-predict (%fms) with ping (%fms)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), DelayedProjectileInfo.ProjectileId, *GetNameSafe(NewProjectile), DelayedProjectileInfo.CrashPC->GetForwardPredictionTime() * 1000.0f, DelayedProjectileInfo.CrashPC->PlayerState->ExactPing);
 
             // Send the spawn information to the server so they can spawn the authoritative projectile.
             SendSpawnDataToServer(DelayedProjectileInfo.SpawnLocation, DelayedProjectileInfo.SpawnRotation, DelayedProjectileInfo.ProjectileId);
@@ -882,13 +885,13 @@ void UAbilityTask_SpawnPredictedProjectile::OnSpawnDataReplicated(const FGamepla
     {
         if (const FGameplayAbilityTargetData_ProjectileSpawnInfo* SpawnInfo = static_cast<const FGameplayAbilityTargetData_ProjectileSpawnInfo*>(TargetData))
         {
-            AMyPlayerController* PC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr;
-            const float ForwardPredictionTime = PC->GetForwardPredictionTime();
+            ACrashPlayerController* CrashPC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<ACrashPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr;
+            const float ForwardPredictionTime = CrashPC->GetForwardPredictionTime();
             
             if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnInfo->SpawnLocation, SpawnInfo->SpawnRotation, GenerateSpawnParamsForAuth(SpawnInfo->ProjectileId)))
             {
                 // Note that there will be a discrepancy between the server's perceived ping and the client's.
-                PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned authoritative projectile (%s). Forwarded (%fms) for perceived ping (%fms). Latency reduction: (%fms) Client bias: (%i%%)"), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), SpawnInfo->ProjectileId, *GetNameSafe(NewProjectile), ForwardPredictionTime * 1000.0f, PC->PlayerState->ExactPing, PC->PredictionLatencyReduction, (uint32)(PC->ClientBiasPct * 100.0f));
+                PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned authoritative projectile (%s). Forwarded (%fms) for perceived ping (%fms). Latency reduction: (%fms) Client bias: (%i%%)"), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), SpawnInfo->ProjectileId, *GetNameSafe(NewProjectile), ForwardPredictionTime * 1000.0f, CrashPC->PlayerState->ExactPing, CrashPC->PredictionLatencyReduction, (uint32)(CrashPC->ClientBiasPct * 100.0f));
             
                 if (ShouldBroadcastAbilityTaskDelegates())
                 {
@@ -1015,18 +1018,18 @@ void UAbilityTask_SpawnPredictedProjectile::OnTaskRejected()
 {
     PROJECTILE_LOG(Warning, TEXT("(ID: %i): SpawnPredictedProjectile task in ability (%s) rejected. Destroying fake projectile (%s)..."), *GetNameSafe(SpawnedFakeProj.Get()), *GetNameSafe(Ability), *GetNameSafe(SpawnedFakeProj.Get()));
     
-    AMyPlayerController* PC = (Ability && Ability->GetCurrentActorInfo()) ? Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController) : nullptr;
+    ACrashPlayerController* CrashPC = (Ability && Ability->GetCurrentActorInfo()) ? Cast<ACrashPlayerController>(Ability->GetCurrentActorInfo()->PlayerController) : nullptr;
     
     // If we've spawned a fake projectile on the client, destroy it.
     if (SpawnedFakeProj.IsValid())
     {
         // The fake projectile will still be lingering on the PC's list of unlinked projectiles; we need to remove it.
-        if (PC)
+        if (CrashPC)
         {
-            if (const uint32* Key = PC->FakeProjectiles.FindKey(SpawnedFakeProj.Get()))
+            if (const uint32* Key = CrashPC->FakeProjectiles.FindKey(SpawnedFakeProj.Get()))
             {
                 UE_LOG(LogProjectiles, Error, TEXT("Removed %i"), *Key);
-                PC->FakeProjectiles.Remove(*Key);
+                CrashPC->FakeProjectiles.Remove(*Key);
             }
         }
         

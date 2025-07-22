@@ -10,7 +10,7 @@ last_modified_at: 2025-07-11
 
 The third part of a series exploring and implementing projectile prediction for multiplayer games. This part walks through initializing the base `AProjectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](...).
+If you just want the final code, it can be found on [Unreal Engine's Learning site](TODO).
 {: .notice--info}
 
 ## Introduction
@@ -82,7 +82,7 @@ We'll also need to know whether this actor is a fake projectile or the authorita
 public:
 
     /** Initialize this projectile as the fake projectile. */
-    void InitFakeProjectile(AMyPlayerController* OwningPlayer, uint32 InProjectileId);
+    void InitFakeProjectile(ACrashPlayerController* OwningPlayer, uint32 InProjectileId);
 
 protected:
 
@@ -116,7 +116,7 @@ To link the two projectiles (which we'll do in the authoritative projectile's `B
 {% highlight c++ %}
 // Projectile.cpp
 
-void AProjectile::InitFakeProjectile(AMyPlayerController* OwningPlayer, uint32 InProjectileId)
+void AProjectile::InitFakeProjectile(ACrashPlayerController* OwningPlayer, uint32 InProjectileId)
 {
     if (InProjectileId == NULL_PROJECTILE_ID)
     {
@@ -153,8 +153,8 @@ void AProjectile::BeginPlay()
 {
     Super::BeginPlay();
 
-    AMyPlayerController* PC = GetInstigator() ? GetInstigatorController<AMyPlayerController>() : nullptr;
-    if (!ensureAlwaysMsgf(IsValid(PC), TEXT("Instigating player controller could not be found for predicted projectile projectile (%s). Failed to find player controller with instigator (%s). Predicted projectiles must be spawned with an instigator with a valid player controller."), *GetName(), *GetNameSafe(GetInstigator())))
+    ACrashPlayerController* CrashPC = GetInstigator() ? GetInstigatorController<ACrashPlayerController>() : nullptr;
+    if (!ensureAlwaysMsgf(IsValid(CrashPC), TEXT("Instigating player controller could not be found for predicted projectile projectile (%s). Failed to find player controller with instigator (%s). Predicted projectiles must be spawned with an instigator with a valid player controller."), *GetName(), *GetNameSafe(GetInstigator())))
     {
         Destroy();
         return;
@@ -166,10 +166,10 @@ void AProjectile::BeginPlay()
         PROJECTILE_LOG(Verbose, TEXT("(%i:%i:%i) (ID: %i): Successfully replicated authoritative projectile (%s) to client."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), ProjectileId, *GetName());
 
         // Link to the associated fake projectile.
-        if (ensureAlwaysMsgf(PC->FakeProjectiles.Contains(ProjectileId), TEXT("Client-side authoritative projectile (%s) failed to find corresponding fake projectile with ID (%i)."), *GetNameSafe(this), ProjectileId))
+        if (ensureAlwaysMsgf(CrashPC->FakeProjectiles.Contains(ProjectileId), TEXT("Client-side authoritative projectile (%s) failed to find corresponding fake projectile with ID (%i)."), *GetNameSafe(this), ProjectileId))
         {
-            LinkFakeProjectile(PC->FakeProjectiles[ProjectileId]);
-            PC->FakeProjectiles.Remove(ProjectileId);
+            LinkFakeProjectile(CrashPC->FakeProjectiles[ProjectileId]);
+            CrashPC->FakeProjectiles.Remove(ProjectileId);
         }
     }
 }
@@ -186,13 +186,13 @@ Now that our linking is set up, we just need to call `InitProjectileId` and `Ini
 FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParamsForFake(const uint32 ProjectileId) const
 {
     FActorSpawnParameters Params = GenerateSpawnParams();
-    AMyPlayerController* PC = Cast<AMyPlayerController>(Ability->GetCurrentActorInfo()->PlayerController);
-    Params.CustomPreSpawnInitalization = [ProjectileId, PC](AActor* Actor)
+    ACrashPlayerController* CrashPC = Cast<ACrashPlayerController>(Ability->GetCurrentActorInfo()->PlayerController);
+    Params.CustomPreSpawnInitalization = [ProjectileId, CrashPC](AActor* Actor)
     {
         if (AProjectile* Projectile = Cast<AProjectile>(Actor))
         {
             Projectile->InitProjectileId(ProjectileId);
-            Projectile->InitFakeProjectile(PC, ProjectileId);
+            Projectile->InitFakeProjectile(CrashPC, ProjectileId);
         }
     };
     return Params;
