@@ -37,7 +37,7 @@ Forwarding the projectile like this can sometimes cause issues with hit detectio
 
 To fix this, we need to enable `bForceSubStepping` on our `ProjectileMovement` component, decrease `MaxSimulationTimeStep`, and increase `MaxSimulationIterations`. This forces the projectile to break its movement into discrete steps, so hit detection can still be performed while forwarding it.
 
-With this, we can see the authoritative projectile being fast-forwarded on spawn, without the risk of missing collisions:
+With this, we can still fast-forward the authoritative projectile on spawn, without the risk of missing collisions:
 
 <video width="100%" height="100%" muted autoplay loop>
    <source src="/assets/videos/per-post/projectile-prediction-4/with-substepping.mp4" type="video/mp4">
@@ -61,28 +61,6 @@ The replicated authoritative projectile is hidden for the client with the fake p
    <source src="/assets/videos/per-post/projectile-prediction-4/lerp-demo.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
-### Rewinding
-
-On remote clients (the clients that didn't fire the projectile, so they don't have a fake one), the projectile will first appear a noticeable distance ahead of where it spawned, due to the time it takes to replicate from the server, and because of our fast-forwarding:
-
-<video width="100%" height="100%" muted autoplay loop>
-   <source src="/assets/videos/per-post/projectile-prediction-4/without-rewinding.mp4" type="video/mp4">
-    Video tag not supported.
-</video>
-
-The white sphere is where the projectile was spawned (we're placing it a little bit ahead of the player's camera, so it doesn't clip into their viewport); the green sphere is where it first appears for remote clients.
-{: .notice--info}
-
-To make this less noticeable, when the projectile is first replicated to remote clients, we rewind it back to its spawn transform. This is done at the end of `BeginPlay`, using a replicated property called `SpawnTransform.` By doing this, we ensure that remote clients see the entire trajectory and lifetime of the projectile:
-
-<video width="100%" height="100%" muted autoplay loop>
-   <source src="/assets/videos/per-post/projectile-prediction-4/with-rewinding.mp4" type="video/mp4">
-    Video tag not supported.
-</video>
-
-To learn why this, unintuitively, _doesn't_ cause synchronization issues, see [part 1](https://sreitich.github.io/projectile-prediction-1/#partial-fast-forwarding-with-synchronization-and-resimulation). The reconciliation techniques we'll cover below also help with mitigate potential issues caused by this desynchronization.
-{: .notice--info}
 
 ## Debugging
 
@@ -108,7 +86,9 @@ And if `bWaitForLinkage` is enabled, we won't start drawing until the fake and a
 
 ![Spawn location and detonation location debug draws]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/debug-spawn-final.png){: .align-center}
 
-The reason why the authoritative projectile's server and client spawn locations (the first white and green spheres) don't appear to be synchronized is because we don't rewind the authoritative projectile on the local client, since (1) we don't see it and (2) we always want it to match exactly where the authoritative projectile is on the server, so we can perform accurate synchronization and reconciliation. In this situation, the green sphere doesn't really represent the projectile's spawn location, but rather its location when it's first replicated back to us.
+The "spawn position" draw doesn't really represent the "spawn" location of the projectile; it shows the location of the projectile at the time when it first appeared on a given machine. The first white sphere shows where the projectile was spawned on the server (we're placing it a little bit ahead of the player's camera, so it doesn't clip into their viewport). In this image, there's a red sphere there, too, showing where the fake projectile was spawned, but it's in the exact same position as the authoritative projectile, so the white sphere is hiding it. 
+<br>
+Lastly, the first green sphere shows where the authoritative projectile was when it was first replicated back to the local client, which is later due to latency. As the local client, we don't care about this visual discrepancy, since we don't actually see the authoritative projectile (we only see the fake one), but we'll have to account for this for clients _without_ a fake projectile (i.e. any the clients that _didn't_ fire this projectile), which we'll look at in the [_Remote Clients_ section](#remote-clients).
 {: .notice--info}
 
 When debugging projectile synchronization, we can log each lerp step performed by enabling `bLogCorrection`:
@@ -291,7 +271,9 @@ This is deferment is handled via the `TornOff` event. This function is called wh
 
 This second detonation should always succeed, and will either be a successful prediction (if the fake projectile, which has now been linked, has already detonated in the same location) or a missed prediction that will be caught by one of the above reconciliation methods, since our projectiles are now guaranteed to have been linked.
 
-## Remote Client Reconciliation
+## Remote Clients
+
+### Detonation
 
 On remote clients (the clients that didn't fire the projectile), the replicated authoritative projectile also simulates its movement and hit detection locally. To mitigate any synchronization issues this may cause, we use the `TornOff` event. When the server's projectile detonates and tears off, the `TornOff` event is propagated to clients, which forces them to detonate if they haven't done so already.
 
@@ -303,20 +285,27 @@ The server's projectile will also send clients a collection of information speci
 
 ### Rewinding
 
-On remote clients, due to latency and forward-prediction, projectiles will often appear a noticeable distance ahead of where they spawned—or, if the projectile detonates too quickly, not at all:
+Due to the time it takes to replicate from the server and because of fast-forwarding, projectiles on remote clients will often appear a noticeable distance ahead of where they spawned—or, if the projectile detonates too quickly, not at all:
 
-TODO (appearing far ahead, and not appearing at all)
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/without-rewinding.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
-To fix this, when a projectile is replicated to a remote client, it is rewound back to its spawn position and then resimulated (which is done by simply teleporting the projectile back to its spawn transform in `BeginPlay`):
+We saw this discrepancy earlier when [looking at debugging options](#debugging).
+{: .notice--info}
 
-TODO
+To fix this, when a projectile is first replicated to a remote client, we rewind it back to its spawn transform. This is done in `BeginPlay`, by simply teleporting the projectile backwards using a replicated property called `SpawnTransform`. By doing this, we ensure that remote clients see the entire trajectory and lifetime of the projectile:
+
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/with-rewinding.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 When the projectile's detonation is propagated to the client, we need to make sure it's had enough time to catch up to the location of the detonation. To do this, in `DetonationInfo`'s `OnRep` function, we set a short timer called `FinishedResimulationTimer`, depending on how far the projectile is from the detonation location. Once that timer ends, the projectile will be detonated with `DetonationInfo`.
 
 We do this in the `OnRep` instead of `TornOff` because `DetonationInfo` is set as soon as the server's projectile detonates, but `TornOff` is often delayed to make sure there's been enough time to send an initial replication update, which messes with our timing. At this point, `TornOff` is used as a last resort, if the projectile somehow doesn't reach its final location and detonate by the time it's torn off.
 {: .notice--info}
-
-TODO
 
 ### Resimulation
 
