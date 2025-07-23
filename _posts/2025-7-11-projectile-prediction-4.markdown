@@ -3,14 +3,14 @@ layout: single
 title: "Projectile Prediction: Part 4"
 excerpt: A breakdown of the base projectile's features and reconciliation techniques.
 header:
-    teaser: /assets/images/per-post/cone-trace/cone-trace-teaser.png
+    teaser: /assets/images/per-post/projectile-prediction-4/projectile-prediction-4-teaser.png
 author: Meta
 last_modified_at: 2025-07-20
 ---
 
 The fourth and final part of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the implementation of a base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
 
-The code for which this article provides an overview can be found on [Unreal Engine's Learning site](...). Additionally, a more concise explanation of this code can be found at the [official documentation page](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
+The code for which this article provides an overview can be found on [Unreal Engine's Learning site](TODO). Additionally, a more concise explanation of this code can be found at the [official documentation page](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
 {: .notice--info}
 
 ## Introduction
@@ -30,40 +30,58 @@ We didn't implement this when we created the `SpawnPredictedProjectile` class be
 
 Forwarding the projectile like this can sometimes cause issues with hit detection. Since we're essentially teleporting the projectile forward in time, if the projectile should have hit something close to its spawn location, there's a chance it will be teleported right through it, missing it entirely:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/without-substepping.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 To fix this, we need to enable `bForceSubStepping` on our `ProjectileMovement` component, decrease `MaxSimulationTimeStep`, and increase `MaxSimulationIterations`. This forces the projectile to break its movement into discrete steps, so hit detection can still be performed while forwarding it.
 
 With this, we can see the authoritative projectile being fast-forwarded on spawn, without the risk of missing collisions:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/with-substepping.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 ## Synchronization
 
 Since we're only _partially_ fast-forwarding our projectile (again, see [part 1](https://sreitich.github.io/projectile-prediction-1/#partia-fast-forwarding-with-synchronization-and-resimulation)), the predicted/"fake" projectile will still not be synced with the authoritative projectile.
 
-We'll talk more about why this desynchronization can cause issues in the [_Reconciliation_ section](#detonation--reconciliation).
+We'll talk more about why this desynchronization can cause issues in the [_Reconciliation_ section](#missed-prediction-reconciliation).
 {: .notice--info}
 
 To synchronize our projectiles, we slowly lerp the fake projectile towards the authoritative one. We do this by calling `CorrectionLerpTick` on the client's version of the authoritative actor each tick, which sets the linked fake projectile's location one step towards the authoritative one. To actually move the actor, we hack into the `ReplicatedMovement` property, which can safely handle the movement update.
 
 The rate at which we lerp the projectile is `0.05%` of the projectile's initial speed each tick. This is an arbitrary value that I've found to be big enough to synchronize the projectiles quickly, but small enough to be completely unnoticeable to clients.
 
-The replicated authoritative projectile is hidden for the client with the fake projectile (since we don't want to see two different projectiles). But if we unhide it, we can see how the projectiles synhronize over time:
+The replicated authoritative projectile is hidden for the client with the fake projectile (since we don't want to see two different projectiles). But if we unhide it, we can see how, once the authoritative projectile is spawned and forwarded, the projectiles synchronize over time:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/lerp-demo.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 ### Rewinding
 
 On remote clients (the clients that didn't fire the projectile, so they don't have a fake one), the projectile will first appear a noticeable distance ahead of where it spawned, due to the time it takes to replicate from the server, and because of our fast-forwarding:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/without-rewinding.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+The white sphere is where the projectile was spawned (we're placing it a little bit ahead of the player's camera, so it doesn't clip into their viewport); the green sphere is where it first appears for remote clients.
+{: .notice--info}
 
 To make this less noticeable, when the projectile is first replicated to remote clients, we rewind it back to its spawn transform. This is done at the end of `BeginPlay`, using a replicated property called `SpawnTransform.` By doing this, we ensure that remote clients see the entire trajectory and lifetime of the projectile:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/with-rewinding.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
-To learn why this, unintuitively, does _not_ cause synchronization issues, see [part 1](https://sreitich.github.io/projectile-prediction-1/#partia-fast-forwarding-with-synchronization-and-resimulation). The reconciliation techniques we'll cover below also help with mitigate potential issues caused by this desynchronization.
+To learn why this, unintuitively, _doesn't_ cause synchronization issues, see [part 1](https://sreitich.github.io/projectile-prediction-1/#partial-fast-forwarding-with-synchronization-and-resimulation). The reconciliation techniques we'll cover below also help with mitigate potential issues caused by this desynchronization.
 {: .notice--info}
 
 ## Debugging
@@ -80,23 +98,26 @@ These settings allow for the configuration of a variety of debugging options.
 
 When making `PredictedVersusClient` draws, we also draw arrows between the projectiles' corresponding time steps, to show the difference in their positions at each point in their trajectory. When we sync the projectiles over time, we can see this distance become smaller and smaller, until the two are eventually synced, indicated by a change in color:
 
-TODO
+![Debug draws showing projectile synchronization over time]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/debug-sync.png){: .align-center}
 
 And if `bWaitForLinkage` is enabled, we won't start drawing until the fake and authoritative projectiles have been linked. If it's disabled, we'll always see a few unlinked fake projectile draws, since the fake projectile is always spawned earlier:
 
-TODO
+![Unlinked fake projectile debug draws]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/debug-linkage.png){: .align-center}
 
-`bDrawSpawnPosition` and `bDrawFinalPosition` help us debug projectile spawns and hits, by showing the starting and ending position of each projectile:
+`bDrawSpawnPosition` and `bDrawFinalPosition` help us debug projectile spawns and hits, by showing the starting and ending position of each projectile, color-coded to each machine:
 
-TODO
+![Spawn location and detonation location debug draws]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/debug-spawn-final.png){: .align-center}
+
+The reason why the authoritative projectile's server and client spawn locations (the first white and green spheres) don't appear to be synchronized is because we don't rewind the authoritative projectile on the local client, since (1) we don't see it and (2) we always want it to match exactly where the authoritative projectile is on the server, so we can perform accurate synchronization and reconciliation. In this situation, the green sphere doesn't really represent the projectile's spawn location, but rather its location when it's first replicated back to us.
+{: .notice--info}
 
 When debugging projectile synchronization, we can log each lerp step performed by enabling `bLogCorrection`:
 
-TODO
+![Output log logging projectile synchronization]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/debug-correction-log.png){: .align-center}
 
 Lastly, we can adjust the frequency, duration, and color of each draw with the remaining `Draw` and `Color` settings:
 
-TODO (e.g. drawing server at a high frequency)
+![Debug drawing with a high frequency]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/debug-freq.png){: .align-center}
 
 ## Movement
 
@@ -110,9 +131,9 @@ To perform this movement replication, we use a variable called `ReplicatedProjec
 
 We override `AActor`'s replication functions—`PreReplication`, `GatherCurrentMovement`, etc.—to replace `ReplicatedMovement` with our `ReplicatedProjectileMovement` variable, and to use our custom `bReplicateProjectileMovement` variable instead of `bReplicateMovement`.
 
-When projectiles land, we enable `bReplicateProjectileMovement` to replicate their final position, to ensure every projectile lands in the same place:
+When projectiles land, we enable `bReplicateProjectileMovement` to replicate their final position, to ensure every projectile lands in the same place on every machine:
 
-TODO
+![Projectile detonating in the same location across multiple machines]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/movement-rep.png){: .align-center}
 
 Using a custom movement replication variable may seem like a wild micro-optimization (it kinda is), but there are a few other changes we want to make to the built-in movement replication code, which are made easier by this. For example, we ignore the movement replication on non-owning simulated proxies (the clients that didn't fire the projectile), since their projectile will be intentionally behind due to being rewound.
 
@@ -122,7 +143,7 @@ For hit detection, two different colliders are used: a `Collision` collider and 
 
 This allows us to define two different hitboxes for each projectile, which is extremely useful. For example, if we have a "spear" projectile, we'd want it to have a very small hitbox against the environment, accurate to its size, so players can throw it through small gaps. But we might want it to have a more generous hitbox against enemies, so it isn't difficult to use:
 
-TODO
+!["Spear" projectile hitboxes]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/spear.png){: .align-center}
 
 We use the `Collision` collider as the projectile movement component's `UpdatedComponent`, since it's usually accurate to what the projectile's actual physics body would be, meaning it also has to be the projectile actor's root component. This does, unfortunately, lead to some restrictions on how projectiles can be configured, but I find this setup to be the most flexible without complicating code or requiring multiple base classes.
 
@@ -149,7 +170,7 @@ A "direct impact" detonation is only triggered when hitting a valid target. To d
 
 `Filter` is a variable of type `FCrashTargetDataFilter`, which is our project-specific `FGameplayTargetDataFilter`. This variable can be configured by projectiles to define whether an actor should be hit by the projectile depending on its team, its gameplay tags (e.g. actors with an `Invulnerable` tag are usually ignored), whether it's the owning actor (e.g. if we want to allow self-damage), whether it has an ability system component, and other parameters:
 
-TODO (showing filter property in projectile archetype)
+!["Filter" struct options]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/filter.png){: .align-center}
 
 When the `Hitbox` collider overlaps an actor, the projectile will only detonate if that actor "passes" this filter (though this can be disabled with `bUseFilter`). This filter is also used when determining whether to apply AOE effects to nearby actors.
 
@@ -161,7 +182,7 @@ The `bSkipAreaEffectForImpactTarget` variable can be set to ignore the target of
 
 The exact radius of a projectile's area of effect can be visualized by enabling the `bDrawFinalPosition` debug setting:
 
-TODO
+![Area-of-effect radius debug visualization]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/aoe-visualization.png){: .align-center}
 
 ### FX
 
@@ -173,7 +194,7 @@ Each of these events can trigger a collection of particle effects, sound cues, f
 
 To compartmentalize these effects, we define a custom struct called `FProjectileFX`. This represents a collection of FX that can be triggered as a group. Projectiles have an instance of this struct defined for each of the aforementioned events, which will be collectively triggered when the event occurs:
 
-TODO: (showing FX properties in projectile archetype)
+![FX properties]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/fx-properties.png){: .align-center}
 
 This struct is _not_ used, however, for FX triggered by the "direct impact" event. This event triggers the `ImpactGameplayEffect`, so we instead add a gameplay cue to this gameplay effect and put any FX we want inside that cue, to help improve compartmentalization.
 
@@ -183,7 +204,10 @@ Because projectiles simulate their movement locally on each machine, the detonat
 
 This feels and looks great for small, fast, or inconsequential (e.g. no AOE or lingering effects) projectiles, like small bullets. Missed predictions and corrections are extremely rare and barely noticeable. But for larger or slower projectiles with big AOE effects, like a rocket, the risk of missed predictions increases, and correcting those predictions looks a lot more jarring, like having to resimulate an entire explosion in the correct location:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/replaying-fx.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 To fix this, projectiles have an option called `bPredictFX`. If `bPredictFX` is enabled, detonation and impact FX will be predicted (with plenty of reconciliation to correct any missed predictions that occur). If `bPredictFX` is disabled, these events will only be triggered by the authoritative projectile, and will be replicated to other machines when they occur.
 
@@ -192,7 +216,10 @@ Bounce FX are always predicted, since predicting and correcting physics simulati
 
 It's up to the discretion of designers whether a projectile should predict its FX. Usually, we want smaller, quick, direct-hit projectiles, like bullets, to predict FX, while big, slow, AOE projectiles, like rockets, shouldn't:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/predicting-fx.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 Regardless of `bPredictFX`, we never predict gameplay effects. Since we use a gameplay cue tied to the `ImpactGameplayEffect` for "direct impact" FX, this means these FX are never predicted. This is intentional, since we want our damage (which we also don't predict), hitmarker, FX, and reaction animations to be synced together, and because hit-impact missed predictions are really irritating for players. From what I've seen, this is a fairly conventional approach in games: predicting FX except for ones that indicate damage (blood splatters, star particles, etc.).
 {: .notice--info}
@@ -207,11 +234,17 @@ To make sure of this, there are a number of potential missed predictions we acco
 
 Since we're simulating our projectile's movement locally (as opposed to replicating movement), having two projectiles that aren't perfectly synchronized can cause them to hit different targets. For example, if the fake projectile is ahead of the real one (since it's fired first), if an enemy moves through the path of the projectile, they may be _in_ the path of the projectile when the fake projectile reaches them, but be _out_ of the path when the real projectile catches up. This would result in the fake projectile hitting the enemy, but the real one missing them:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/missed-premature.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+On the client (right), playing with 200ms of ping, the projectile hits the enemy and detonates. But on the server (left), it misses, and instead hits the green wall in the distance. If `bPredictFX` was false (which it normally would be for a rocket projectile like this), we wouldn't see the explosion on the client; the projectile would just disappear.
+{: .notice--info}
 
 To detect this, after the fake projectile detonates, it sets a short timer (determined by ping) called `SwitchToAuthTimer`. If the corresponding authoritative projectile hasn't detonated when the timer ends, that means the fake projectile detonated prematurely.
 
-To reconcile this, we immediately destroy the fake projectile and switch to the authoritative projectile (i.e. we make the replicated authoritative projectile visible on the owning client, and use it for all visuals going forward):
+To reconcile the misprediction, we immediately destroy the fake projectile and switch to the authoritative projectile (i.e. we make the replicated authoritative projectile visible on the owning client, and use it for all visuals going forward):
 
 TODO
 
