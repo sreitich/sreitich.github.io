@@ -115,7 +115,7 @@ When projectiles land, we enable `bReplicateProjectileMovement` to replicate the
 
 ![Projectile detonating in the same location across multiple machines]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-4/movement-rep.png){: .align-center}
 
-Using a custom movement replication variable may seem like a wild micro-optimization (it kinda is), but there are a few other changes we want to make to the built-in movement replication code, which are made easier by this. For example, we ignore the movement replication on non-owning simulated proxies (the clients that didn't fire the projectile), since their projectile will be intentionally behind due to being rewound.
+Using a custom movement replication variable may seem like a wild micro-optimization (it kinda is), but there are a few other changes we want to make to the built-in movement replication code which are made easier by this. For example, we ignore the movement replication on non-owning simulated proxies (the clients that didn't fire the projectile), since their projectile will be intentionally behind due to being rewound (which we'll look at later).
 
 ## Hit Detection
 
@@ -219,28 +219,47 @@ Since we're simulating our projectile's movement locally (as opposed to replicat
     Video tag not supported.
 </video>
 
-On the client (right), playing with 200ms of ping, the projectile hits the enemy and detonates. But on the server (left), it misses, and instead hits the green wall in the distance. If `bPredictFX` was false (which it normally would be for a rocket projectile like this), we wouldn't see the explosion on the client; the projectile would just disappear.
+On the client (right), playing with 200ms of ping, the fake projectile hits the enemy and detonates. But on the server (left), it misses and continues traveling. Because `bPredictFX` is disabled (we typically wouldn't predict FX for a rocket projectile), we don't even see an explosion from the fake projectile, since it's waiting for the authoritative projectile's detonation; it just disappears. If `bPredictFX` were enabled, we'd see an explosion where the fake projectile (mistakenly) detonated.
 {: .notice--info}
 
 To detect this, after the fake projectile detonates, it sets a short timer (determined by ping) called `SwitchToAuthTimer`. If the corresponding authoritative projectile hasn't detonated when the timer ends, that means the fake projectile detonated prematurely.
 
-To reconcile the misprediction, we immediately destroy the fake projectile and switch to the authoritative projectile (i.e. we make the replicated authoritative projectile visible on the owning client, and use it for all visuals going forward):
+To reconcile the misprediction, we immediately destroy the fake projectile and switch to the authoritative projectile; i.e. we make the replicated authoritative projectile visible on the owning client, and use it for all visuals going forward.
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/reconciliation-premature.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+We can see the projectile disappear when it mistakenly detonates on the client. But once the timer ends, the projectile re-appears and continues traveling. This new projectile is the authoritative projectile being unhidden after the fake projectile has been destroyed. Once the authoritative projectile lands, the FX are played the correct location.
+
+If `bPredictFX` was enabled, the fake projectile would have already played its FX in the incorrect location, meaning we'd end up seeing the FX played twice. This is a little annoying, but this misprediction occurs so rarely and only at such high latencies that it's a fair tradeoff for an otherwise responsive and reliable system.
 
 ### Late Detonation
 
 For the same reason as the previous case, it's possible for the _authoritative_ projectile to hit something that the _fake_ projectile missed. For example, if an enemy moves into the path of the projectile _after_ the fake projectile has passed, but _before_ the real projectile has caught up:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/missed-late.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+This time, the fake projectile _misses_ the enemy and keeps traveling, but the authoritative projectile hits the enemy and detonates (which we see, since `bPredictFX` is disabled here, meaning we use the authoritative projectile's FX).
+{: .notice--info}
 
 To detect this, when the authoritative projectile detonates, we can simply check whether the fake projectile has also detonated. If it hasn't, the fake projectile likely missed whatever the real projectile hit.
 
 To reconcile this case, we do the same thing as before: destroy the fake projectile and switch to the real one:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/missed-late.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
-Since the projectile should detonate at this point, we're not really "switching" to the authoritative projectile. Rather, we're just using its detonation effects (which would be otherwise hidden, unless `bPredictFX` was false), instead of waiting for the fake projectile to detonate.
+Now, we destroy the fake projectile when the real one detonates, so it doesn't keep traveling. (The red sphere shows where it was when it was destroyed.)
+{: .notice--info}
+
+Since the projectile should detonate at this point, we're not really "switching" to the authoritative projectile. Rather, we're just using its detonation effects—which we do anyway if `bPredictFX` is disabled, which is why the FX look the same in the above example.
 
 Note that when this occurs, it isn't _necessarily_ a missed prediction. It's possible that the fake projectile may have _just_ been about to detonate, but ended up slightly behind the authoritative projectile. This can happen if our ping estimates are slightly off, causing us to fast-forward the authoritative projectile too far, causing it to end up ahead of the fake one.
 <br>
@@ -253,15 +272,29 @@ Just because the fake and authoritative projectile detonate around the same time
 
 For example, if the authoritative projectile missed the fake projectile's target, but hit something directly behind it, the mistake wouldn't be caught, since the authoritative projectile may still have detonated before the `SwitchToAuthTimer` ended:
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/missed-inaccurate.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
-To account for this, once the authoritative projectile detonates, if the fake projectile has also detonated, we check to see _where_ it detonated. If the two projectiles detonated a considerable distance apart, then the fake projectile likely hit the wrong target, and we once again destroy the fake projectile, and use the authoritative projectile's effects.
+For this example, we're using a projectile with `bPredictFX` enabled, since this is issue _really_ hard to notice when FX aren't predicted.
+<br>
+Here, the client's fake projectile hits the moving wall. The authoritative projectile misses it, but hits the wall behind it before `SwitchToAuthTimer` ends.
+{: .notice--info}
+
+To account for this, once the authoritative projectile detonates, if the fake projectile has also detonated, we check to see _where_ it detonated. If the two projectiles detonated a considerable distance apart, then the fake projectile likely hit the wrong target, and we once again destroy the fake projectile, and use the authoritative projectile's effects:
+
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/reconciliation-inaccurate.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
+
+This time, since we're predicting the fake projectile's FX, we end up playing our FX twice: once when the fake projectile mistakenly detonates, and once when the authoritative projectile performs the correct detonation. But, again, this is so rare that we're okay with it; we just want to make sure the player sees what their projectile _really_ hit.
+{: .notice--info}
 
 ### Lost Projectile
 
-Finally, it's possible for either the fake or the authoritative projectile to lose its reference to the other. This can happen if the fake projectile detonated so prematurely that it was destroyed by the time the authoritative projectile detonated (since projectiles usually destroy themselves after detonating), or the authoritative projectile detonated so early (likely on spawn) that it hasn't even been linked yet. And without a reference to the other projectile, it becomes impossible to check for missed predictions:
-
-TODO
+Finally, it's possible for either the fake or the authoritative projectile to lose its reference to the other. This can happen if the fake projectile detonated so prematurely that it was destroyed by the time the authoritative projectile detonated (since projectiles usually destroy themselves after detonating), or the authoritative projectile detonated so early (likely on spawn) that it hasn't even been linked yet. And without a reference to the other projectile, it becomes impossible to check for missed predictions.
 
 Fortunately, the former case is already handled by the [_Premature Detonation_ detection method](#premature-detonation): destruction is always deferred until `SwitchToAuthTimer` has had enough time to finish. When the authoritative projectile eventually detonates, we'll have already switched to it, and we'll just replay the detonation effects in the correct location.
 
@@ -311,7 +344,12 @@ We do this in the `OnRep` instead of `TornOff` because `DetonationInfo` is set a
 
 Lastly, we want to account for when a projectile detonates so quickly that it _never_ appears on clients.
 
-This isn't a technical issue (we already account for projectiles that detonate too quickly, as detailed in the [_Lost Projectile_ section](#lost-projectile)), but more a quality-of-life one. The projectile is detonating properly; we just never see it, since it's detonating right when it spawns.
+This isn't a technical issue (we already account for projectiles that detonate too quickly, as detailed in the [_Lost Projectile_ section](#lost-projectile)), but more a quality-of-life one. The projectile is detonating properly; we just never see it, since it's detonating right when it spawns:
+
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/without-resimulation.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
 To fix this, we define a value called `MinLifetime`, which defines the minimum amount of time that we want a projectile to be visible for.
 
@@ -321,13 +359,16 @@ If the projectile hasn't even finished spawning (meaning it hasn't even been rew
 
 If the projectile _has_ finished spawning, but hasn't been alive for `MinLifetime`, we'll just slow its velocity, such that by the time it reaches the detonation location, it will have been alive for `MinLifetime`.
 
-TODO
+<video width="100%" height="100%" muted autoplay loop>
+   <source src="/assets/videos/per-post/projectile-prediction-4/with-resimulation.mp4" type="video/mp4">
+    Video tag not supported.
+</video>
 
-Lastly, if the projectile has been alive for at least `MinLifetime`, we'll execute the detonation as usual.
+Finally, if the projectile has been alive for at least `MinLifetime`, we'll execute the detonation as usual.
 
 ## Conclusion
 
-Well, with all of those components broken down, that concludes this four-part series on projectile prediction. Let's take one final look at the difference projectile prediction makes (just to convince you that all of this isn't worthless):
+Well, with all of those components broken down, that brings this section—and this series—to a close. Let's take one final look at the difference projectile prediction makes (just to convince you that all of this isn't worthless):
 
 TODO
 
