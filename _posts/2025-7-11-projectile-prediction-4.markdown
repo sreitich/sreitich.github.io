@@ -1,11 +1,11 @@
 ---
 layout: single
 title: "Projectile Prediction: Part 4"
-excerpt: A breakdown of the base projectile's features and reconciliation techniques.
+excerpt: A breakdown of projectile features and reconciliation techniques.
 header:
     teaser: /assets/images/per-post/projectile-prediction-4/projectile-prediction-4-teaser.png
 author: Meta
-last_modified_at: 2025-07-20
+last_modified_at: 2025-07-23
 ---
 
 The fourth and final part of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the implementation of a base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
@@ -370,7 +370,7 @@ Finally, if the projectile has been alive for at least `MinLifetime`, we'll exec
 
 Well, with all of those components broken down, that brings this section—and this series—to a close. Let's take one final look at the difference projectile prediction makes (just to convince you that all of this isn't worthless):
 
-TODO
+<iframe width="560" height="315" src="https://www.youtube.com/embed/h0VqCNtnb04?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=h0VqCNtnb04" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 
 When I went to implement projectile prediction for my game, I had an impossible time finding any remotely relevant resources on the topic. This solution came from looking at open-source projects (like [Unreal Tournament](https://github.com/JimmieKJ/unrealTournament/tree/clean-master)), using network limiters to reverse-engineer various games, scrubbing through netcode GDC talks for _any_ mention of projectiles, and—more than anything else—a lot of trial-and-error.
 

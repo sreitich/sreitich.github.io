@@ -32,7 +32,7 @@ For disambiguation, the term "projectile prediction" can also refer to the indic
 
 In this series, we'll examine the theory behind projectile prediction, and walk through implementing our own robust projectile system that mitigates latency and improves responsiveness, without sacrificing fairness:
 
-TODO
+<iframe width="560" height="315" src="https://www.youtube.com/embed/x0ld1QDUcqY?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=x0ld1QDUcqY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 
 ## Possible Approaches
 

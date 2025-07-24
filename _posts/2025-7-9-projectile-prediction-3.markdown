@@ -23,7 +23,7 @@ In the next and last part of this series, I'll show you my own implementation, w
 
 But first, let's get our projectiles linked.
 
-## Initialization
+## Linking
 
 We set up a "projectile ID" system in the last section, but we never actually assigned or used any of the IDs we generated. Let's start by giving our projectile class a member to store an ID, and a setter to initialize it.
 
@@ -217,6 +217,6 @@ Now, our projectiles should both be getting spawned _and_ linked together. We'll
 Remember to raise the `LogProjectiles` channel's verbosity level to `Verbose` or `VeryVerbose` with the `log LogProjectiles Verbose` command.
 {: .notice--info}
 
-### What's Next
+## What's Next
 
 Now that we have our projectiles spawned and linked, all we need to do is implement the `AProjectile` class itself. You can do this however you want, but in the next and final section of this series, I'll break down the highly configurable implementation we use for all of the projectiles in _Cloud Crashers_, which includes features like projectile movement, hit detection, effects, and reconciliation.
