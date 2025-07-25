@@ -13,7 +13,7 @@ Part 1 of a series exploring and implementing projectile prediction for multipla
 This tutorial uses Unreal Engine for its code, but the theory and techniques are applicable for any game engine.
 {: .notice--info}
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](TODO). This is a complex topic, so the subsequent posts, which walk through the code implementation, are extremely long-winded, since I want to provide a detailed explanation of how every part of this system works. If you aren't interested in an extensive walkthrough, it may be easier to copy the code directly, and use these posts as a reference for explanations on anything you don't understand.
+If you just want the final code, it can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). This is a complex topic, so the subsequent posts, which walk through the code implementation, are extremely long-winded, since I want to provide a detailed explanation of how every part of this system works. If you aren't interested in an extensive walkthrough, it may be easier to copy the code directly, and use these posts as a reference for explanations on anything you don't understand.
 {: .notice--info}
 
 ## Introduction
@@ -33,7 +33,7 @@ For disambiguation, the term "projectile prediction" can also refer to the indic
 In this series, we'll examine the theory behind projectile prediction, and walk through implementing our own robust projectile system that mitigates latency and improves responsiveness, without sacrificing fairness:
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/x0ld1QDUcqY?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=x0ld1QDUcqY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
-
+<br>
 ## Possible Approaches
 
 Unfortunately, projectile prediction ends up being a lot more complex than predicting simple actions (like ray-tracing a gunshot or triggering a particle effect): projectiles are actual _actors_; they have complex hit detection, physics simulations, and a myriad of potential side effects that can be triggered during their lifespan (like an explosion when landing). If we were to simply spawn the client's version of the projectile instantly, we would quickly discover synchronization issues and visual discrepancies (which we'll see later on).

@@ -10,7 +10,7 @@ last_modified_at: 2025-07-22
 
 The third part of a series exploring and implementing projectile prediction for multiplayer games. This part walks through initializing the base `AProjectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](TODO).
+If you just want the final code, it can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66).
 {: .notice--info}
 
 ## Introduction

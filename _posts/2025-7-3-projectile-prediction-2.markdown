@@ -10,10 +10,10 @@ last_modified_at: 2025-07-09
 
 Part 2 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through how to predictively spawn projectile actors using the Gameplay Ability System in Unreal Engine.
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](TODO). Again, this is a long-winded and detailed walkthrough of the entire code. If that's not something you're interested in, it may be easier to copy the code, and use this page as a reference for explanations on anything that's unclear.
+If you just want the final code, it can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). Again, this is a long-winded and detailed walkthrough of the entire code. If that's not something you're interested in, it may be easier to copy the code, and use this page as a reference for explanations on anything that's unclear.
 {: .notice--info}
 
-This code was written for a game called [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/), and uses project-specific classes named as such. For your game, you'll need to replace classes like `ACrashPlayerController` and `UCrashAbilitySystemComponent` with your game's respective player controller and ASC classes.
+This code was written for a game called [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/), and uses project-specific classes named as such. For your game, you'll need to replace the classes `ACrashPlayerController` and `UCrashAbilitySystemComponent` with your game's respective player controller and ASC classes.
 {: .notice--info}
 
 ## Introduction
@@ -233,7 +233,7 @@ float ACrashPlayerController::GetProjectileSleepTime() const
     return 0.001f * FMath::Max(0.0f, PlayerState->ExactPing - PredictionLatencyReduction - MaxPredictionPing);
 }
 {% endhighlight %}
-
+<br>
 ## Tracking Projectiles
 
 One other thing we should set up in our player controller is a way to track projectiles; we need a way to identify our projectiles so they can be linked together once they're spawned.
@@ -659,14 +659,21 @@ void UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile()
 }
 {% endhighlight %}
 
-And with that, our fake projectile should be getting spawned successfully:
+Now, we can set up our ability script with something like this:
+
+![Gameplay ability script]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-2/script.png){: .align-center}
+
+We haven't actually implemented the `AProjectile` class yet, so if you want to test this, you can subclass `AProjectile` into a blueprint, add a mesh component, and use that blueprint as the `Projectile Class` parameter, so you can actaully see the projectile.
+{: .notice--info}
+
+... and with that, our fake projectile should be getting spawned successfully:
 
 <video width="100%" height="100%" muted autoplay loop>
    <source src="/assets/videos/per-post/projectile-prediction-2/spawning-fake-projectile.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
-I don't have any animations for these abilities yet, so I'm using an input debugger to indicate exactly when the input is pressed, to show that the projectile appears instantly for the player.
+<br>
+I don't have animations for these abilities, so I'm using an input debugger to indicate exactly when the input is pressed, to show that the projectile appears instantly for the player.
 {: .notice--info}
 
 ## Spawning the Authoritative Projectile
@@ -677,11 +684,7 @@ To spawn our authoritative projectile, we need to send the spawn information fro
 
 If we were to use the same spawn parameters given in our constructor, our authoritative projectile would spawn in a different location than our fake projectile. This is because `Local Predicted` abilities are executed once on the local client, then again on the server once the client's "activate" input is replicated.
 
-If we were to set up our task like so:
-
-![Spawning task using local parameters]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-2/task-with-local-inputs.png){: .align-center}
-
-... the parameters would be different on the client and the server; if we had `60ms` of ping, then the server would read those values `30ms` later, and thus end up with different values than the client read when it activated `30ms` prior.
+That means that if we were to set up our task like the image above, the parameters (determined by `GetPlayerViewPoint`) would be different on the client and the server; if we had `60ms` of ping, then the server would read those values `30ms` later, and thus end up with different values than the client read when it activated `30ms` prior.
 
 We _could_ just use the server's values for the authoritative projectile, but it's better if we use the client's values, so both projectiles start with the same transform. This way, regardless of any fast-forwarding or rewinding, both projectiles will always follow the same trajectory, which makes reconciliation much easier and makes the game feel more accurate for the player firing the projectile.
 
@@ -1129,7 +1132,7 @@ Now, we should _finally_ have our finished task. We should now be seeing a fake 
    <source src="/assets/videos/per-post/projectile-prediction-2/final-task-demo.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 We can even test our rejection handling by adding the following script to our ability's `CanActivate` function:
 
 ![Script to reject ability activation on the server only]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-2/rejection-test-script.png){: .align-center}
@@ -1140,7 +1143,7 @@ Now, since the server will always reject the ability, we should see our client's
    <source src="/assets/videos/per-post/projectile-prediction-2/task-rejection-testing.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 ## What's Next
 
 Both of our projectiles are now being properly spawned, but we still need to finish linking them together before we can start implementing any logic.

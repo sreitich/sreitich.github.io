@@ -10,7 +10,7 @@ last_modified_at: 2025-07-23
 
 The fourth and final part of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the implementation of a base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
 
-The code for which this article provides an overview can be found on [Unreal Engine's Learning site](TODO). Additionally, a more concise explanation of this code can be found at the [official documentation page](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
+The code for which this article provides an overview can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). Additionally, a more concise explanation of this code can be found at the [official documentation page](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
 {: .notice--info}
 
 ## Introduction
@@ -19,7 +19,7 @@ In the last section, we walked through the "linking" step of initializing projec
 
 ## Fast-Forwarding
 
-In [part 1](https://sreitich.github.io/projectile-prediction-1/#partia-fast-forwarding-with-synchronization-and-resimulation), we decided that we would (partially) fast-forward the authoritative projectile such that it spawns closer to where the owning client wants it.
+In [part 1](https://sreitich.github.io/projectile-prediction-1/#partial-fast-forwarding-with-synchronization-and-resimulation), we decided that we would (partially) fast-forward the authoritative projectile such that it spawns closer to where the owning client wants it.
 
 In the `SpawnPredictedProjectile` class, we fast-forward the projectile in `OnSpawnDataReplicated`, after it's spawned, by the `ForwardPredictionTime` given to us by our player controller. We call `TickActor` to tick the actor's components (for things like animations or VFX), and `TickComponent` on the projectile's `ProjectileMovement` component (see [_Movement_](#movement)) to actually move it forward.
 
@@ -34,7 +34,7 @@ Forwarding the projectile like this can sometimes cause issues with hit detectio
    <source src="/assets/videos/per-post/projectile-prediction-4/without-substepping.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 To fix this, we need to enable `bForceSubStepping` on our `ProjectileMovement` component, decrease `MaxSimulationTimeStep`, and increase `MaxSimulationIterations`. This forces the projectile to break its movement into discrete steps, so hit detection can still be performed while forwarding it.
 
 With this, we can still fast-forward the authoritative projectile on spawn, without the risk of missing collisions:
@@ -43,10 +43,10 @@ With this, we can still fast-forward the authoritative projectile on spawn, with
    <source src="/assets/videos/per-post/projectile-prediction-4/with-substepping.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 ## Synchronization
 
-Since we're only _partially_ fast-forwarding our projectile (again, see [part 1](https://sreitich.github.io/projectile-prediction-1/#partia-fast-forwarding-with-synchronization-and-resimulation)), the predicted/"fake" projectile will still not be synced with the authoritative projectile.
+Since we're only _partially_ fast-forwarding our projectile (again, see [part 1](https://sreitich.github.io/projectile-prediction-1/#partial-fast-forwarding-with-synchronization-and-resimulation)), the predicted/"fake" projectile will still not be synced with the authoritative projectile.
 
 We'll talk more about why this desynchronization can cause issues in the [_Reconciliation_ section](#missed-prediction-reconciliation).
 {: .notice--info}
@@ -61,7 +61,7 @@ The replicated authoritative projectile is hidden for the client with the fake p
    <source src="/assets/videos/per-post/projectile-prediction-4/lerp-demo.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 ## Debugging
 
 Given the complex nature of projectile prediction, we've implemented a variety of tools to help with debugging, in addition to extensive debug logging. These tools are defined in a `UDeveloperSettingsBackedByCVars` class called `UGASDeveloperSettings` (since, technically, this projectile implementation is part of the Gameplay Ability System).
@@ -188,7 +188,7 @@ This feels and looks great for small, fast, or inconsequential (e.g. no AOE or l
    <source src="/assets/videos/per-post/projectile-prediction-4/replaying-fx.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 To fix this, projectiles have an option called `bPredictFX`. If `bPredictFX` is enabled, detonation and impact FX will be predicted (with plenty of reconciliation to correct any missed predictions that occur). If `bPredictFX` is disabled, these events will only be triggered by the authoritative projectile, and will be replicated to other machines when they occur.
 
 Bounce FX are always predicted, since predicting and correcting physics simulations is more complex, and these FX aren't as important as the detonation or impacts.
@@ -200,7 +200,7 @@ It's up to the discretion of designers whether a projectile should predict its F
    <source src="/assets/videos/per-post/projectile-prediction-4/predicting-fx.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 Regardless of `bPredictFX`, we never predict gameplay effects. Since we use a gameplay cue tied to the `ImpactGameplayEffect` for "direct impact" FX, this means these FX are never predicted. This is intentional, since we want our damage (which we also don't predict), hitmarker, FX, and reaction animations to be synced together, and because hit-impact missed predictions are really irritating for players. From what I've seen, this is a fairly conventional approach in games: predicting FX except for ones that indicate damage (blood splatters, star particles, etc.).
 {: .notice--info}
 
@@ -218,7 +218,7 @@ Since we're simulating our projectile's movement locally (as opposed to replicat
    <source src="/assets/videos/per-post/projectile-prediction-4/missed-premature.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 On the client (right), playing with 200ms of ping, the fake projectile hits the enemy and detonates. But on the server (left), it misses and continues traveling. Because `bPredictFX` is disabled (we typically wouldn't predict FX for a rocket projectile), we don't even see an explosion from the fake projectile, since it's waiting for the authoritative projectile's detonation; it just disappears. If `bPredictFX` were enabled, we'd see an explosion where the fake projectile (mistakenly) detonated.
 {: .notice--info}
 
@@ -230,7 +230,7 @@ To reconcile the misprediction, we immediately destroy the fake projectile and s
    <source src="/assets/videos/per-post/projectile-prediction-4/reconciliation-premature.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 We can see the projectile disappear when it mistakenly detonates on the client. But once the timer ends, the projectile re-appears and continues traveling. This new projectile is the authoritative projectile being unhidden after the fake projectile has been destroyed. Once the authoritative projectile lands, the FX are played the correct location.
 
 If `bPredictFX` was enabled, the fake projectile would have already played its FX in the incorrect location, meaning we'd end up seeing the FX played twice. This is a little annoying, but this misprediction occurs so rarely and only at such high latencies that it's a fair tradeoff for an otherwise responsive and reliable system.
@@ -243,7 +243,7 @@ For the same reason as the previous case, it's possible for the _authoritative_ 
    <source src="/assets/videos/per-post/projectile-prediction-4/missed-late.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 This time, the fake projectile _misses_ the enemy and keeps traveling, but the authoritative projectile hits the enemy and detonates (which we see, since `bPredictFX` is disabled here, meaning we use the authoritative projectile's FX).
 {: .notice--info}
 
@@ -255,7 +255,7 @@ To reconcile this case, we do the same thing as before: destroy the fake project
    <source src="/assets/videos/per-post/projectile-prediction-4/missed-late.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 Now, we destroy the fake projectile when the real one detonates, so it doesn't keep traveling. (The red sphere shows where it was when it was destroyed.)
 {: .notice--info}
 
@@ -276,7 +276,7 @@ For example, if the authoritative projectile missed the fake projectile's target
    <source src="/assets/videos/per-post/projectile-prediction-4/missed-inaccurate.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 For this example, we're using a projectile with `bPredictFX` enabled, since this is issue _really_ hard to notice when FX aren't predicted.
 <br>
 Here, the client's fake projectile hits the moving wall. The authoritative projectile misses it, but hits the wall behind it before `SwitchToAuthTimer` ends.
@@ -288,7 +288,7 @@ To account for this, once the authoritative projectile detonates, if the fake pr
    <source src="/assets/videos/per-post/projectile-prediction-4/reconciliation-inaccurate.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 This time, since we're predicting the fake projectile's FX, we end up playing our FX twice: once when the fake projectile mistakenly detonates, and once when the authoritative projectile performs the correct detonation. But, again, this is so rare that we're okay with it; we just want to make sure the player sees what their projectile _really_ hit.
 {: .notice--info}
 
@@ -324,7 +324,7 @@ Due to the time it takes to replicate from the server and because of fast-forwar
    <source src="/assets/videos/per-post/projectile-prediction-4/without-rewinding.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 We saw this discrepancy earlier when [looking at debugging options](#debugging).
 {: .notice--info}
 
@@ -334,7 +334,7 @@ To fix this, when a projectile is first replicated to a remote client, we rewind
    <source src="/assets/videos/per-post/projectile-prediction-4/with-rewinding.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 When the projectile's detonation is propagated to the client, we need to make sure it's had enough time to catch up to the location of the detonation. To do this, in `DetonationInfo`'s `OnRep` function, we set a short timer called `FinishedResimulationTimer`, depending on how far the projectile is from the detonation location. Once that timer ends, the projectile will be detonated with `DetonationInfo`.
 
 We do this in the `OnRep` instead of `TornOff` because `DetonationInfo` is set as soon as the server's projectile detonates, but `TornOff` is often delayed to make sure there's been enough time to send an initial replication update, which messes with our timing. At this point, `TornOff` is used as a last resort, if the projectile somehow doesn't reach its final location and detonate by the time it's torn off.
@@ -350,7 +350,7 @@ This isn't a technical issue (we already account for projectiles that detonate t
    <source src="/assets/videos/per-post/projectile-prediction-4/without-resimulation.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 To fix this, we define a value called `MinLifetime`, which defines the minimum amount of time that we want a projectile to be visible for.
 
 In `DetonationInfo`'s `OnRep`, when we'd normally detonate the projectile, we check to see how long the projectile has been alive for.
@@ -363,7 +363,7 @@ If the projectile _has_ finished spawning, but hasn't been alive for `MinLifetim
    <source src="/assets/videos/per-post/projectile-prediction-4/with-resimulation.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 Finally, if the projectile has been alive for at least `MinLifetime`, we'll execute the detonation as usual.
 
 ## Conclusion
@@ -371,7 +371,7 @@ Finally, if the projectile has been alive for at least `MinLifetime`, we'll exec
 Well, with all of those components broken down, that brings this section—and this series—to a close. Let's take one final look at the difference projectile prediction makes (just to convince you that all of this isn't worthless):
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/h0VqCNtnb04?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=h0VqCNtnb04" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
-
+<br>
 When I went to implement projectile prediction for my game, I had an impossible time finding any remotely relevant resources on the topic. This solution came from looking at open-source projects (like [Unreal Tournament](https://github.com/JimmieKJ/unrealTournament/tree/clean-master)), using network limiters to reverse-engineer various games, scrubbing through netcode GDC talks for _any_ mention of projectiles, and—more than anything else—a lot of trial-and-error.
 
 I went through the effort of writing this lengthy series just because I wanted to put _some_ kind of resource out there to help those trying to implement projectile prediction, since it's such a common feature.
