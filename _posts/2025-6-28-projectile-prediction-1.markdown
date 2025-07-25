@@ -5,15 +5,15 @@ excerpt: An exploration of the theory behind projectile prediction.
 header:
     teaser: /assets/images/per-post/projectile-prediction-1/projectile-prediction-1-teaser.png
 author: Meta
-last_modified_at: 2025-07-03
+last_modified_at: 2025-07-25
 ---
 
-Part 1 of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the theory behind projectile prediction, some approaches to implementing it, and a short overview of the version _we'll_ create in (starting in part 2) using Unreal Engine.
+Part 1 of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the theory behind projectile prediction, some approaches to implementing it, and a short overview of the version we'll be breaking down, starting in part 2, using Unreal Engine and (optionally) the Gameplay Ability System.
 
 This tutorial uses Unreal Engine for its code, but the theory and techniques are applicable for any game engine.
 {: .notice--info}
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). This is a complex topic, so the subsequent posts, which walk through the code implementation, are extremely long-winded, since I want to provide a detailed explanation of how every part of this system works. If you aren't interested in an extensive walkthrough, it may be easier to copy the code directly, and use these posts as a reference for explanations on anything you don't understand.
+The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). This is a complex topic, and a step-by-step coding walkthrough would be impractical. This series instead provides a high-level explanation of projectile prediction, and a detailed overview and breakdown of how this particular Unreal Engine implementation works. It can be used as documentation for this code, or as a reference for implementing your own projectile prediction solution.
 {: .notice--info}
 
 ## Introduction
@@ -23,22 +23,22 @@ Client-side prediction is a crucial component of making real-time online games f
 I'm assuming you know how client-side prediction works if you're reading this. If not, [this video provides a good overview of the topic.](https://www.youtube.com/watch?v=2Xl0oaTKBXo)
 {: .notice--info}
 
-One core feature of client-side prediction, present in most modern multiplayer games, is _projectile prediction_ (despite the fact that, for some reason, it's _really_ hard to find good resources on this topic, hence why I'm writing this).
+One core feature of client-side prediction, present in most modern multiplayer games, is **projectile prediction**.
 
-Projectile prediction is the client-side prediction performed when a client fires a projectile (a rocket launcher, a grenade, etc.). When the player presses the "_fire_" input, we want to instantly spawn and simulate the projectile for them, to keep the game feeling responsive.
+Projectile prediction is the client-side prediction performed when a client fires a projectile (a rocket launcher, a grenade, etc.). When the player presses the "fire" input, we want to instantly spawn and simulate the projectile for them, to keep the game feeling responsive.
 
 For disambiguation, the term "projectile prediction" can also refer to the indicators that appear when players are preparing to throw or shoot something, showing them the trajectory in which their projectile will travel. This is a separate, unrelated topic that we aren't covering here.
 {: .notice--info}
 
-In this series, we'll examine the theory behind projectile prediction, and walk through implementing our own robust projectile system that mitigates latency and improves responsiveness, without sacrificing fairness:
+In this series, we'll examine the theory behind projectile prediction, and break down a highly configurable implementation of projectile prediction that mitigates latency and improves responsiveness, without sacrificing fairness:
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/x0ld1QDUcqY?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=x0ld1QDUcqY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 <br>
 ## Possible Approaches
 
-Unfortunately, projectile prediction ends up being a lot more complex than predicting simple actions (like ray-tracing a gunshot or triggering a particle effect): projectiles are actual _actors_; they have complex hit detection, physics simulations, and a myriad of potential side effects that can be triggered during their lifespan (like an explosion when landing). If we were to simply spawn the client's version of the projectile instantly, we would quickly discover synchronization issues and visual discrepancies (which we'll see later on).
+Unfortunately, projectile prediction ends up being a lot more complex than predicting simple actions (like ray-tracing a gunshot or triggering a particle effect): projectiles are _tangible actors_; they may have complex hit detection, physics simulations, and a myriad of potential side effects that can be triggered during their lifespan (like an explosion when landing). If we were to simply spawn the client's version of the projectile instantly, we would quickly discover synchronization issues and visual discrepancies (which we'll see later on).
 
-Like most things in game development, there's no universal solution to this problem. Different games implement client-side prediction in a different way, specifically suited to the needs of the project. So before we design and implement our own, let's start by looking at some possible approaches.
+Like most things in game development, there's no universal solution to this problem. Different games implement client-side prediction in a different way, specifically suited to the needs of the project. So let's start by looking at some possible approaches.
 
 ### No Prediction
 
@@ -50,7 +50,7 @@ In this situation, when the player presses the "fire" button, they send a messag
 
 In this diagram, the distance between the mannequin and the first projectile represents where the projectile appears locally, relative to its actual spawn location. On the server, the projectile appears at its proper location, right in front of the player, as soon as it's spawned. But because it takes time to replicate the projectile back to clients, the projectile will appear _ahead_ of its spawn location, since it's been traveling in the time it takes to replicate (the exact distance will be $$({client \: ping} / 2) \cdot {projectile \: velocity}$$).
 
-Already, we can see two big problems. First: the projectile is spawned a considerable amount of time _after_ the player presses the input. For clients playing with `60ms` of ping, it will take `30ms` for a projectile to spawn on the server, and _another_ `30ms` for that projectile to appear on the client. Second: projectiles appear a noticeable distance ahead of where they're supposed to be, on both the local and remote clients. If a projectile is traveling `100m/s`, it will appear `3m` ahead of where it should on clients with `60ms` of ping.
+Already, we can see two big problems. First: the projectile is spawned a considerable amount of time _after_ the player presses the input, since it takes time for the input request to reach the server. For clients playing with `60ms` of ping (round-trip time), it will take `30ms` for a projectile to spawn on the server, and _another_ `30ms` for that projectile to appear on the client. Second: projectiles appear a noticeable distance ahead of where they're supposed to be, on both the local and remote clients. If a projectile is traveling `100m/s`, it will appear `3m` ahead of where it should on clients with `60ms` of ping.
 
 When I say "local" and "remote," I'm referring to the perspective of the projectile, not the server. So the "local client" is the client that fired and owns the projectile, while the "remote clients" are any of the other clients connected to the server. 
 {: .notice--info}
@@ -76,17 +76,17 @@ This is how _Unreal Tournament_ handles projectile prediction. You can see how t
 
 The downside of this is that the projectile will visibly "jump" backwards in time, since we're switching between projectiles that are in two different locations. However, projectiles are usually so small and travel at such high speeds that this jump isn't noticeable—especially amidst the action of a fast-paced game.
 
-An alternative solution is the smoothly synchronize the projectiles over time by lerping the fake projectile towards the real one.
+An alternative solution is to smoothly synchronize the projectiles over time by lerping the fake projectile towards the real one.
 
 ![Prediction diagram: fake projectile with lerped sync]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-1/visualization-fake-proj-sync-lerp.png){: .align-center}
 
-This creates a smoother visual, but if the projectile hits something shortly after being fired, it may not have had enough time to fully synchronize yet. Though, in practice, it's highly likely that both the fake and real projectile will end up hitting that same target, even if they haven't fully synchronized yet.
+This creates a smoother visual, but if the projectile hits something shortly after being fired, it may not have had enough time to fully synchronize yet. Though, in practice, it's highly likely that both the fake and real projectile will end up hitting that same target in this situation, even if they haven't fully synchronized yet.
 
-Both of these solutions are perfectly viable (we'll opt to use the latter when we implement our own), and they help solve both of our problems (at least, for the local client; we'll get to fixing remote clients later). However, there's another major issue that might be difficult to notice just from these diagrams, and it has to do with both responsiveness _and_ fairness.
+Both of these solutions are perfectly viable (our implementation uses the latter), and they help solve both of our problems (at least, for the local client; we'll get to fixing remote clients later). However, there's another major issue that might be difficult to notice just from these diagrams, and it has to do with both responsiveness _and_ fairness.
 
 We mentioned that our predicted projectile is a "fake": it doesn't actually damage enemies or have any effect on gameplay; that's still the responsibility of the server's projectile.
 
-What that means is that, since the server's projectile is the one actually performing hit detection, players with lower latency will still have an advantage, because their projectiles will be spawned on the server faster and be closer to their _desired_ shot (which is represented by their _fake_ projectile). This is another issue that we need to account for.
+What that means is that, since the server's projectile is the one actually performing hit detection, players with lower latency will still have an advantage, because their projectiles will be spawned on the server faster and be closer to their _desired_ shot. This is another issue that we should account for.
 
 ### Fast-Forwarding
 
@@ -94,7 +94,7 @@ Ideally, for maximum responsiveness _and_ fairness, the real projectile should b
 
 ![Prediction diagram: fast-forwarding]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-1/visualization-forwarding.png){: .align-center}
 
-This—combined with our fake projectile—essentially mitigates latency from the equation _completely_, which is great. However, you might realize that this presents yet another problem: fairness for _other_ players. If a client is playing with `200ms` of ping, on the server, their `100m/s` projectile will be fast-forwarded `10m` ahead of where it spawned, and, on other clients, will appear **`20m`** ahead of where it spawned. That means that if a player is any less than `20m` away (a considerable distance), they'll never even _see_ the projectile, because it will hit them before it even appears on their screen.
+This—combined with our fake projectile—essentially mitigates latency from the equation _completely_, which is great. However, you might realize that this presents yet another problem: fairness for _other_ players. If a client is playing with `200ms` of ping, on the server, their `100m/s` projectile will be fast-forwarded `10m` ahead of where it spawned, and, on other clients, will appear `20m` ahead of where it spawned. That means that if a player is any less than `20m` away (a considerable distance), they'll never even _see_ the projectile, because it will hit them before it even appears on their screen.
 
 In addition to being visually jarring, this just isn't fair to other players.
 
@@ -115,7 +115,7 @@ Since we're only partially fast-forwarding the projectile now, it won't appear e
 
 ![Prediction diagram: partial fast-forwarding with lerping synchronization]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-1/visualization-forwarding-partial-w-sync.png){: .align-center}
 
-Now, our projectiles look good on both the server and the local client, but they still look poor on remote clients due to replication time and forward-prediction. How can we fix this, without sacrificing our prediction?
+Now, our projectiles look good on both the server and the local client, but they still look bad on remote clients due to replication time and forward-prediction. How can we fix this, without sacrificing our prediction?
 
 ### Partial Fast-Forwarding with Synchronization and Resimulation
 
@@ -125,50 +125,50 @@ When the projectile is initially replicated to a remote client, we can _rewind_ 
 
 ![Prediction diagram: partial fast-forwarding with lerping synchronization and remote resimulation]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-1/visualization-forwarding-partial-w-sync-and-resim.png){: .align-center}
 
-You might think that this will cause synchronization issues, since the remote client's projectile is now behind the real one. However, in practice, these problems are actually fairly easy to account for since, because of replication time, the projectile will _already_ be behind. For example, if we trigger some explosion VFX with an RPC when the server's projectile hits something, it will take `30ms` (assuming `60ms` of ping) for that explosion to appear on remote clients. When that `30ms` ends, our projectile will likely have already _caught up_ to where it exploded on the server.
+You might think that this will cause synchronization issues, since the remote client's projectile is now behind the real one. However, in practice, this isn't really the case. Because of replication time, the projectile will _already_ be behind. For example, if we trigger some explosion VFX with an RPC when the server's projectile hits something, it will take `30ms` (assuming `60ms` of ping) for that explosion to appear on remote clients. When that `30ms` ends, our projectile will likely have already _caught up_ to where it exploded on the server.
 
 ## Solution
 
 Each of these approaches is a decent model for a projectile prediction system. Some are better than others, but they all have pros and cons, and you can probably find examples of each in various games.
 
-In the subsequent parts of this series, we'll walk through designing and implementing our own projectile prediction system using Unreal Engine and the Gameplay Ability System. We'll be using the latter of the above models: _Partial Fast-Forwarding with Synchronization and Resimulation_, but our system will be highly configurable, so it should be well-suited for a wide range of projects. And, of course, you can modify it to your needs.
+In the subsequent parts of this series, we'll examine the implementation of our own projectile prediction system using Unreal Engine and the Gameplay Ability System, originally created for the game [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/). This solution uses the latter of the above models: _Partial Fast-Forwarding with Synchronization and Resimulation_, but it's highly configurable, and should be well-suited for a wide range of projects. And, of course, you can modify it to your needs.
 
-We'll only be using the Gameplay Ability System so we can hook into its prediction system to spawn our projectiles. If your project doesn't use GAS, you can still use this system; you'll just have to spawn the projectiles your own way.
+We only use the Gameplay Ability System so we can hook into its prediction system to spawn our projectiles. If your project doesn't use GAS, you can still use this system; you'll just have to spawn the projectiles your own way.
 {: .notice--info}
 
 Before we dive in, let's look at an overview of how this system will work, and recap how our prediction model will operate.
 
 ### Spawning
 
-To spawn our projectiles, we'll use the Gameplay Ability System to predictively spawn a "fake" projectile on the local client, spawn the real projectile on the server, and link the two together so they can be synchronized. This code will comprise the next part of this tutorial.
+To spawn our projectiles, we use the Gameplay Ability System to predictively spawn a "fake" projectile on the local client, spawn the real projectile on the server, and link the two together so they can be synchronized. We'll break down this code in the next part of this series.
 
-We're using GAS so we can hook into its built-in prediction system. We'll spawn projectiles inside gameplay abilities so that if our ability is rejected by the server, we can reconcile the missed prediction by destroying our fake projectile. We'll handle other prediction logic on our own; we're just using GAS to predict the actual spawning of the projectile. We'll also leverage GAS's "target data" replication system to link our projectiles together.
+We use GAS so we can hook into its built-in prediction system. We spawn projectiles inside gameplay abilities so that if our ability is rejected by the server, we can reconcile the missed prediction by destroying our fake projectile. We handle other prediction logic on our own; we just use GAS to predict the actual spawning of the projectile. We also leverage GAS's "target data" replication system to link our projectiles together.
 
-If you have a game complex enough to necessitate projectile prediction, you're hopefully already using GAS as your gameplay framework.
+If you have a game complex enough to necessitate projectile prediction, you're likely already using GAS as your gameplay framework.
 {: .notice--info}
 
 ### Initialization
 
-On the server, when our real projectile is spawned, it will be forward-predicted to about halfway between where it was spawned on the server and where it would be on the client that fired it (i.e. halfway between where it spawned and where the fake projectile _currently_ is).
+On the server, when our real projectile is spawned, it's forward-predicted to about halfway between where it was spawned on the server and where it would be on the client that fired it (i.e. halfway between where _it_ spawned and where the fake projectile _currently_ is).
 
-On remote clients, when the real projectile is replicated, it will be rewound to its spawn location and resimulated.
+On remote clients, when the real projectile is replicated, it's rewound to its spawn location and resimulated.
 
 ### Projectile Logic
 
-All projectiles will derive from a base `AProjectile` actor class. This class will use a projectile movement component for its physics simulation, and use two different collision shapes for hit detection: one to detect hits against the environment, and one to detect hits against targets (e.g. enemy players).
+All projectiles derive from a base `AProjectile` actor class. This class uses a projectile movement component for its physics simulation, and use two different collision shapes for hit detection: one to detect hits against the environment, and one to detect hits against targets (e.g. enemy players).
 
-It's important to note that projectile movement is _not_ going to be replicated, because projectile movement replication tends to look horrible, even at high net update frequencies. Instead, each machine will simulate the projectile's movement locally, which is why our reconciliation is so important: we have to make sure that each projectile spawns, travels, and lands the exact same way.
+It's important to note that projectile movement is _not_ replicated, because projectile movement replication tends to look horrible, even at high net update frequencies. Instead, each machine simulates the projectile's movement locally, which is why our reconciliation is so important: we have to make sure that each projectile spawns, travels, and lands the exact same way.
 
-Our base projectile class will be highly configurable. It will have various configurable properties to control how the projectile is predicted (e.g. whether the fake projectile should predict visual effects, or if it should wait for the real projectile's effects), in addition to how the projectile appears and moves. It will also have configurable VFX and SFX that can be triggered predictively or authoritatively.
+Our base projectile class is highly configurable. It has various configurable properties to control how the projectile is predicted (e.g. whether the fake projectile should predict visual effects, or if it should wait for the real projectile's effects), in addition to how the projectile appears and moves. It also has configurable VFX and SFX that can be triggered predictively or authoritatively.
 
 ### Synchronization & Reconciliation
 
-As the projectiles travel, they'll be synchronized and reconciled to ensure that their local simulation always looks and behaves the same on all machines.
+As the projectiles travel, they're synchronized and reconciled to ensure that their local simulation always looks and behaves the same on all machines.
 
-On the local client, once the real projectile is replicated from the server, the fake projectile will be lerped over time until both projectiles are synchronized.
+On the local client, once the real projectile is replicated from the server, the fake projectile is lerped towards it over time until both projectiles are synchronized.
 
-When any projectile hits a terminal event (i.e. hitting a target, which triggers its destruction), several reconciliation techniques will be used to ensure that that event occurs the exact same way across all machines. E.g. if the fake projectile hits something that the real projectile missed, we'll ignore the hit, and keep simulating until the real projectile hits something; if the real projectile hits something that the fake projectile missed, the fake projectile will jump to where the real projectile landed; etc.
+When any projectile hits a terminal event (i.e. hitting a target, which triggers its destruction), several reconciliation techniques are used to ensure that that event occurs the exact same way across all machines. E.g. if the fake projectile hits something that the real projectile missed, we ignore the hit, and keep simulating until the real projectile hits something; if the real projectile hits something that the fake projectile missed, the fake projectile jumps to where the real projectile landed; etc.
 
 ## What's Next?
 
-Now that we understand our desired model for projectile prediction and have an overview of how we'll implement it, let's get started by creating the gameplay ability task that will handle spawning the fake and real projectiles.
+Now that we understand our desired model for projectile prediction and have an overview of how we implement it, let's get started by taking a look at the gameplay ability task that handles spawning the fake and real projectiles.
