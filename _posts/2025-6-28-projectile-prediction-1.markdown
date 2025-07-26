@@ -10,10 +10,7 @@ last_modified_at: 2025-07-25
 
 Part 1 of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the theory behind projectile prediction, some approaches to implementing it, and a short overview of the version we'll be breaking down, starting in part 2, using Unreal Engine and (optionally) the Gameplay Ability System.
 
-This tutorial uses Unreal Engine for its code, but the theory and techniques are applicable for any game engine.
-{: .notice--info}
-
-The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). This is a complex topic, and a step-by-step coding walkthrough would be impractical. This series instead provides a high-level explanation of projectile prediction, and a detailed overview and breakdown of how this particular Unreal Engine implementation works. It can be used as documentation for this code, or as a reference for implementing your own projectile prediction solution.
+The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66).
 {: .notice--info}
 
 ## Introduction
@@ -33,7 +30,9 @@ For disambiguation, the term "projectile prediction" can also refer to the indic
 In this series, we'll examine the theory behind projectile prediction, and break down a highly configurable implementation of projectile prediction that mitigates latency and improves responsiveness, without sacrificing fairness:
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/x0ld1QDUcqY?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=x0ld1QDUcqY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
-<br>
+
+In this section, we're looking at some approaches to implementing projectile prediction. In parts 2 and 3, we'll walk through creating a Gameplay Ability System **ability task** to predictively spawn projectiles. And in part 4, we'll look at an implementation of a base projectile actor class, breaking down its features and reconciliation techniques (since a step-by-step coding walkthrough wouldn't be practical, given the length of the code for that class).
+
 ## Possible Approaches
 
 Unfortunately, projectile prediction ends up being a lot more complex than predicting simple actions (like ray-tracing a gunshot or triggering a particle effect): projectiles are _tangible actors_; they may have complex hit detection, physics simulations, and a myriad of potential side effects that can be triggered during their lifespan (like an explosion when landing). If we were to simply spawn the client's version of the projectile instantly, we would quickly discover synchronization issues and visual discrepancies (which we'll see later on).
@@ -131,7 +130,7 @@ You might think that this will cause synchronization issues, since the remote cl
 
 Each of these approaches is a decent model for a projectile prediction system. Some are better than others, but they all have pros and cons, and you can probably find examples of each in various games.
 
-In the subsequent parts of this series, we'll examine the implementation of our own projectile prediction system using Unreal Engine and the Gameplay Ability System, originally created for the game [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/). This solution uses the latter of the above models: _Partial Fast-Forwarding with Synchronization and Resimulation_, but it's highly configurable, and should be well-suited for a wide range of projects. And, of course, you can modify it to your needs.
+In the subsequent parts of this series, we'll walk through and examine the implementation of our own projectile prediction system using Unreal Engine and the Gameplay Ability System, originally created for the game [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/). This solution uses the latter of the above models: _Partial Fast-Forwarding with Synchronization and Resimulation_, but it's highly configurable, and should be well-suited for a wide range of projects. And, of course, you can modify it to your needs.
 
 We only use the Gameplay Ability System so we can hook into its prediction system to spawn our projectiles. If your project doesn't use GAS, you can still use this system; you'll just have to spawn the projectiles your own way.
 {: .notice--info}
@@ -140,7 +139,7 @@ Before we dive in, let's look at an overview of how this system will work, and r
 
 ### Spawning
 
-To spawn our projectiles, we use the Gameplay Ability System to predictively spawn a "fake" projectile on the local client, spawn the real projectile on the server, and link the two together so they can be synchronized. We'll break down this code in the next part of this series.
+To spawn our projectiles, we use the Gameplay Ability System to predictively spawn a "fake" projectile on the local client, spawn the real projectile on the server, and link the two together so they can be synchronized. The next two sections of this series consist of a step-by-step walkthrough to implementing this code.
 
 We use GAS so we can hook into its built-in prediction system. We spawn projectiles inside gameplay abilities so that if our ability is rejected by the server, we can reconcile the missed prediction by destroying our fake projectile. We handle other prediction logic on our own; we just use GAS to predict the actual spawning of the projectile. We also leverage GAS's "target data" replication system to link our projectiles together.
 
@@ -171,4 +170,4 @@ When any projectile hits a terminal event (i.e. hitting a target, which triggers
 
 ## What's Next?
 
-Now that we understand our desired model for projectile prediction and have an overview of how we implement it, let's get started by taking a look at the gameplay ability task that handles spawning the fake and real projectiles.
+Now that we understand our desired model for projectile prediction and have an overview of how we implement it, let's start by implementing the gameplay ability task that handles spawning the fake and real projectiles.

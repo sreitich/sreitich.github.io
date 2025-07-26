@@ -5,15 +5,15 @@ excerpt: Predictively spawning projectiles with the Gameplay Ability System.
 header:
     teaser: /assets/images/per-post/projectile-prediction-2/projectile-prediction-2-teaser.png
 author: Meta
-last_modified_at: 2025-07-09
+last_modified_at: 2025-07-25
 ---
 
 Part 2 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through how to predictively spawn projectile actors using the Gameplay Ability System in Unreal Engine.
 
-If you just want the final code, it can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). Again, this is a long-winded and detailed walkthrough of the entire code. If that's not something you're interested in, it may be easier to copy the code, and use this page as a reference for explanations on anything that's unclear.
+The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). This section is a step-by-step walkthrough to programming the `UAbilityTask_SpawnPredictedProjectile` class. If you don't want a detailed walkthrough, you can copy the code directly (it's the same thing you'll get from following along). The code itself is extremely well-documented, and this page serves as an additional resource for documentation. Alternatively, a more concise documentation page [can be found here](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
 {: .notice--info}
 
-This code was written for a game called [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/), and uses project-specific classes named as such. For your game, you'll need to replace the classes `ACrashPlayerController` and `UCrashAbilitySystemComponent` with your game's respective player controller and ASC classes.
+This code was written for a game called [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/), and uses project-specific classes named as such. For your game, you'll need to replace the `ACrashPlayerController` and `UCrashAbilitySystemComponent` classes with your game's respective player controller and ASC classes.
 {: .notice--info}
 
 ## Introduction
@@ -927,6 +927,24 @@ void UAbilityTask_SpawnPredictedProjectile::OnSpawnDataReplicated(const FGamepla
                 // Note that there will be a discrepancy between the server's perceived ping and the client's.
                 PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned authoritative projectile (%s). Forwarded (%fms) for perceived ping (%fms). Latency reduction: (%fms) Client bias: (%i%%)"), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), SpawnInfo->ProjectileId, *GetNameSafe(NewProjectile), ForwardPredictionTime * 1000.0f, CrashPC->PlayerState->ExactPing, CrashPC->PredictionLatencyReduction, (uint32)(CrashPC->ClientBiasPct * 100.0f));
             
+                if (NewProjectile->ProjectileMovement)
+                {
+                    // Tick the actor (e.g. animations, VFX).
+                    if (NewProjectile->PrimaryActorTick.IsTickFunctionEnabled())
+                    {
+                        NewProjectile->TickActor(ForwardPredictionTime * NewProjectile->CustomTimeDilation, LEVELTICK_All, NewProjectile->PrimaryActorTick);
+                    }
+                    
+                    // Tick the movement component (to actually move the projectile).
+                    NewProjectile->ProjectileMovement->TickComponent(ForwardPredictionTime * NewProjectile->CustomTimeDilation, LEVELTICK_All, nullptr);
+                    if (NewProjectile->GetLifeSpan() > 0.0f)
+                    {
+                        /* Since we're fast-forwarding this actor, we need to subtract the forward prediction time from
+                         * its lifespan. Clamp at 0.2 so we have enough time to replicate. */
+                        NewProjectile->SetLifeSpan(FMath::Max(0.2f, NewProjectile->GetLifeSpan() - ForwardPredictionTime));
+                    }
+                }
+
                 if (ShouldBroadcastAbilityTaskDelegates())
                 {
                     Success.Broadcast(NewProjectile);
@@ -948,7 +966,8 @@ void UAbilityTask_SpawnPredictedProjectile::OnSpawnDataReplicated(const FGamepla
 }
 {% endhighlight %}
 
-This is also where we'd fast-forward the projectile, but we're not doing that yet since we need a reference to the projectile's movement component, which we haven't created yet. We'll come back to this in the next part of this series.
+You can see that this is also where we fast-forward the projectile. We don't have a reference to our projectile's movement component, since we haven't created it yet, so you'll have an error for now. If you want to test this code before implementing the projectile class, you can just comment this part out without issue.
+{: .notice--info}
 
 If our data _fails_ to replicate (because the ability was cancelled or rejected), we need to cancel the server's version of the task.
 
