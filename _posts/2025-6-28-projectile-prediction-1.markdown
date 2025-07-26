@@ -154,7 +154,7 @@ On remote clients, when the real projectile is replicated, it's rewound to its s
 
 ### Projectile Logic
 
-All projectiles derive from a base `AProjectile` actor class. This class uses a projectile movement component for its physics simulation, and use two different collision shapes for hit detection: one to detect hits against the environment, and one to detect hits against targets (e.g. enemy players).
+All projectiles derive from a base `Projectile` actor class. This class uses a projectile movement component for its physics simulation, and use two different collision shapes for hit detection: one to detect hits against the environment, and one to detect hits against targets (e.g. enemy players).
 
 It's important to note that projectile movement is _not_ replicated, because projectile movement replication tends to look horrible, even at high net update frequencies. Instead, each machine simulates the projectile's movement locally, which is why our reconciliation is so important: we have to make sure that each projectile spawns, travels, and lands the exact same way.
 

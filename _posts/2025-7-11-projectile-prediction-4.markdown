@@ -5,17 +5,17 @@ excerpt: A breakdown of projectile features and reconciliation techniques.
 header:
     teaser: /assets/images/per-post/projectile-prediction-4/projectile-prediction-4-teaser.png
 author: Meta
-last_modified_at: 2025-07-23
+last_modified_at: 2025-07-25
 ---
 
-The fourth and final part of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the implementation of a base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
+The fourth and final section of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the implementation of a base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
 
-The code for which this article provides an overview can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). Additionally, a more concise explanation of this code can be found at the [official documentation page](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
+The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). Additionally, a more concise explanation of this code can be found at the [official documentation page](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
 {: .notice--info}
 
 ## Introduction
 
-In the last section, we walked through the "linking" step of initializing projectiles. As mentioned before, in this part, we're going to go through the features of the `Projectile` class, breaking down how each one works, without going too far into the code.
+In the last section, we walked through the "linking" step of initializing projectiles. As mentioned before, the `Projectile` class is large and complex, so a step-by-step coding walkthrough would be impractical. In this part, we're instead going to go through the key features of the `Projectile` class, breaking down, in depth, how each one works.
 
 ## Fast-Forwarding
 
@@ -368,7 +368,7 @@ Finally, if the projectile has been alive for at least `MinLifetime`, we'll exec
 
 ## Conclusion
 
-Well, with all of those components broken down, that brings this section—and this series—to a close. Let's take one final look at the difference projectile prediction makes (just to convince you that all of this isn't worthless):
+Well, with all of those components broken down, that brings this section—and this series—to a close. Let's take one final look at the difference projectile prediction makes (just to convince you that all of this isn't _completely_ worthless):
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/h0VqCNtnb04?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=h0VqCNtnb04" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 <br>

@@ -341,7 +341,7 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
 
 We only need to spawn a fake projectile if we're a local client (i.e. `bIsNetAuthority` is false) and our `ForwardPredictionTime` is greater than `0.0` (i.e. our ping is greater than `0.0`, to account for LAN servers).
 
-To properly spawn our fake projectile, we need a struct of type `FActorSpawnParameters`. These parameters will be re-used a few times, so we can make some helper functions to construct them when needed, with the necessary parameters. (We'll skip the pre-spawn initialization code for now, and come back to it once we implement our ID code in `AProjectile`).
+To properly spawn our fake projectile, we need a struct of type `FActorSpawnParameters`. These parameters will be re-used a few times, so we can make some helper functions to construct them when needed, with the necessary parameters. (We'll skip the pre-spawn initialization code for now, and come back to it once we implement our ID code in `Projectile`).
 
 {% highlight c++ %}
 // AbilityTask_SpawnPredictedProjectile.h
@@ -392,7 +392,7 @@ FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParams
 }
 {% endhighlight %}
 
-Note that we're making the `Instigator` our ASC's avatar (the player's pawn) and the `Owner` our ASC's owner (which is usually the player state). This will be important when we implement our `AProjectile` class.
+Note that we're making the `Instigator` our ASC's avatar (the player's pawn) and the `Owner` our ASC's owner (which is usually the player state). This will be important when we implement our `Projectile` class.
 {: .notice--info}
 
 No, `CustomPreSpawnInitalization` is not a mistake; it's a typo in Unreal's source code.
@@ -663,7 +663,7 @@ Now, we can set up our ability script with something like this:
 
 ![Gameplay ability script]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-2/script.png){: .align-center}
 
-We haven't actually implemented the `AProjectile` class yet, so if you want to test this, you can subclass `AProjectile` into a blueprint, add a mesh component, and use that blueprint as the `Projectile Class` parameter, so you can actaully see the projectile.
+We haven't actually implemented the `Projectile` class yet, so if you want to test this, you can subclass `Projectile` into a blueprint, add a mesh component, and use that blueprint as the `Projectile Class` parameter, so you can actaully see the projectile.
 {: .notice--info}
 
 ... and with that, our fake projectile should be getting spawned successfully:
@@ -1167,4 +1167,4 @@ Now, since the server will always reject the ability, we should see our client's
 
 Both of our projectiles are now being properly spawned, but we still need to finish linking them together before we can start implementing any logic.
 
-In the next section. we'll begin implementing the `AProjectile` class (and finishing some missing code in this class) to link the fake and authoritative projectiles together once they're spawned.
+In the next section. we'll begin implementing the `Projectile` class (and finishing some missing code in this class) to link the fake and authoritative projectiles together once they're spawned.

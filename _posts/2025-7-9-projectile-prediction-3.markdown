@@ -8,7 +8,7 @@ author: Meta
 last_modified_at: 2025-07-25
 ---
 
-Part 3 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through initializing the base `AProjectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
+Part 3 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through initializing the base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
 
 The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). This section is a step-by-step walkthrough to finishing the `UAbilityTask_SpawnPredictedProjectile` class. If you don't want a detailed walkthrough, you can copy the code directly.
 {: .notice--info}
@@ -18,11 +18,11 @@ This code was written for a game called [_Cloud Crashers_](https://store.steampo
 
 ## Introduction
 
-In the previous section, we implemented an ability task to predictively spawn projectile actors. In this section, we'll finish initializing and linking our projectiles together, which I intentionally left unfinished in the last section.
+In the previous section, we implemented an ability task to predictively spawn projectile actors. In this section, we'll finish initializing and linking our projectiles together, which we left unfinished in the last section.
 
 This is the last coding walkthrough in this series because, once the projectiles have been initialized and linked, you can implement the class itself however you want, in whichever way best suits your project.
 
-In the subsequent and final section of this series, we'll examine the implementation we use for _Cloud Crashers_, which is highly configurable, and should be suitable for most games. Given the length and complexity of the class, a step-by-step walkthrough wouldn't be practical. So we'll instead be going through the class's key features and techniques (movement, damage, visual effects, reconciliation, etc.), breaking down and explaining how each one works.
+In the subsequent and final section of this series, we'll examine the implementation we use for _Cloud Crashers_, which is highly configurable, and should be suitable for most games. Given the length and complexity of the class, a step-by-step walkthrough wouldn't be practical. So we'll instead be going through the class's key features and techniques (movement, damage, visual effects, reconciliation, etc.), breaking down how each one works.
 
 But first, let's get our projectiles linked.
 
@@ -222,4 +222,4 @@ Remember to raise the `LogProjectiles` channel's verbosity level to `Verbose` or
 
 ## What's Next
 
-Now that we have our projectiles spawned and linked, all we need to do is implement the `AProjectile` class itself. You can do this however you want, but in the final section of this series, we'll be breaking down the implementation we use for all of the projectiles in _Cloud Crashers_, which includes features like projectile movement, hit detection, effects, and reconciliation.
+Now that we have our projectiles spawned and linked, all we need to do is implement the `Projectile` class itself. You can do this however you want, but in the final section of this series, we'll be breaking down the implementation we use for all of the projectiles in _Cloud Crashers_, which includes features like projectile movement, hit detection, effects, and reconciliation.
