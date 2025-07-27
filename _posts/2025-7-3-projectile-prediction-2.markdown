@@ -5,12 +5,12 @@ excerpt: Predictively spawning projectiles with the Gameplay Ability System.
 header:
     teaser: /assets/images/per-post/projectile-prediction-2/projectile-prediction-2-teaser.png
 author: Meta
-last_modified_at: 2025-07-25
+last_modified_at: 2025-07-26
 ---
 
 Part 2 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through how to predictively spawn projectile actors using the Gameplay Ability System in Unreal Engine.
 
-The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). This section is a step-by-step walkthrough to programming the `UAbilityTask_SpawnPredictedProjectile` class. If you don't want a detailed walkthrough, you can copy the code directly (it's the same thing you'll get from following along). The code itself is extremely well-documented, and this page serves as an additional resource for documentation. Alternatively, a more concise documentation page [can be found here](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
+The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). This section is a step-by-step walkthrough for programming the `UAbilityTask_SpawnPredictedProjectile` class. If you don't want a detailed walkthrough, you can copy the code directly (it's the same thing you'll get from following along). The code itself is extremely well-documented, and this page serves as an additional resource for documentation. Alternatively, a more concise documentation page [can be found here](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
 {: .notice--info}
 
 This code was written for a game called [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/), and uses project-specific classes named as such. For your game, you'll need to replace the `ACrashPlayerController` and `UCrashAbilitySystemComponent` classes with your game's respective player controller and ASC classes.
@@ -22,7 +22,7 @@ In the previous section of this series, we looked at the model we'll be using fo
 
 The model we chose relies on two projectiles: a "fake" projectile, on the firing client, and a "real" (a.k.a. "authoritative") projectile on the server. Once spawned, these two projectiles must be "linked" together so the authoritative projectile can "fast-forward" towards the fake projectile, and so the fake projectile can lerp towards the authoritative one and eventually synchronize with it.
 
-To handle spawning and linking the two projectiles, we'll be using the Gameplay Ability System and creating a new **ability task**. Ability tasks are asynchronous functions that can be called inside gameplay abilities, which is where we'll usually want to spawn projectiles from (e.g. a "fire rocket" ability). 
+To handle spawning and linking the two projectiles, we'll be using the [Gameplay Ability System](https://dev.epicgames.com/documentation/en-us/unreal-engine/gameplay-ability-system-for-unreal-engine) and creating a new [**ability task**](https://dev.epicgames.com/documentation/en-us/unreal-engine/gameplay-ability-tasks-in-unreal-engine). Ability tasks are asynchronous functions that can be called inside gameplay abilities, which is where we'll usually want to spawn projectiles from (e.g. a "fire rocket" ability). 
 
 Using an ability task will let us hook into GAS's prediction system, which we can use to destroy the projectiles if the ability is rejected. It will also make it easier to handle the different network execution paths we need: our ability task needs to run both locally (on the activating client) and on the server; on the client, it will spawn the fake projectile, and on the server, it will spawn and link the authoritative projectile. With an ability task, we can perform both of these operations with just one blueprint node in our ability script, because the ability will create two separate instances of the task for us. Lastly, GAS's "target data" replication system will also let us easily communicate between the client and server without needing to thread any RPCs through a controller or pawn, which will make things easier.
 
@@ -36,14 +36,17 @@ Next, let's create the ability task. Each ability task node needs its own class,
 
 ![Ability task class wizard]({{ '/' | absolute_url }}/assets/images/per-post/projectile-prediction-2/ability-task-class-wizard.png){: .align-center}
 
-Unreal's class wizard won't let you make a class with a name this long. To work around this, name the class something like `SpawnProjectile`, then rename the class _and_ the file to `AbilityTask_SpawnPredictedProjectile` after it's added.
+Unreal's class wizard won't let you make a class with a name this long. To work around this, name the class something like `AbilityTask_Spawn`, then rename the class _and_ the file to `AbilityTask_SpawnPredictedProjectile` after it's added.
+<br>
+<br>
+Unreal itself has several class names that break this character limit, so don't worry about this causing any issues.
 {: .notice--info}
 
 Let's start by declaring a constructor and overriding the `Activate` function.
 
-To call ability tasks, we don't use a traditional constructor. Instead, we define a blueprint-callable function, which we'll call `SpawnPredictedProjectile`, to create and initialize a new instance of the task, and this is the node we actually call inside ability blueprints. `Activate` is the function that's called on the instantiated task itself once it's been created.
+To call ability tasks, we don't use a traditional constructor. Instead, we define a blueprint-callable function, which we'll call `SpawnPredictedProjectile`, to instantiate and initialize a new instance of the task, and this is the node we actually call inside ability blueprints. `Activate` is the function that's called on the instantiated task itself once it's been created.
 
-To properly initialize our task with `SpawnPredictedProjectile`, we need to give it our projectile's parameters: its spawn location, spawn rotation, and the projectile subclass to spawn.
+To properly initialize our task, we need to define any parameters we want our task to have as parameters of the function. In our case, that will be the projectile class we want to spawn, as well as its spawn location and spawn rotation.
 
 {% highlight c++ %}
 // AbilityTask_SpawnPredictedProjectile.h
@@ -115,7 +118,7 @@ Due to latency, `Success` will be triggered at unpredictable times. That means w
 
 Now that we have everything our task needs, we can start implementing the logic.
 
-For our "constructor," `SpawnPredictedProjectile`, all we need to do is create a new task object and initialize its paramters:
+For our "constructor," `SpawnPredictedProjectile`, all we need to do is instantiate a new task object and initialize its parameters:
 
 {% highlight c++ %}
 UAbilityTask_SpawnPredictedProjectile* UAbilityTask_SpawnPredictedProjectile::SpawnPredictedProjectile(UGameplayAbility* OwningAbility, TSubclassOf<AProjectile> ProjectileClass, FVector SpawnLocation, FRotator SpawnRotation)
@@ -144,15 +147,15 @@ We've also added some data validation here. Since this task is performing client
 
 Before we start spawning projectiles, we need to configure some additional parameters for prediction.
 
-We're going to use our player controller as the owner of our projectiles, since it's replicated, easily accessible, and won't be destroyed if our player dies (as opposed to our player character), so I'm choosing to put our prediction configuration properties here too.
+We're going to use our player controller as the owner of our projectiles, since it's replicated, easily accessible, and won't be destroyed if our player dies (as opposed to our player character), so it also serves as a good place to store our prediction configuration properties.
 
 Let's quickly break down the purpose of each of these values before we add them.
 
 ### Maximum Prediction Ping
 
-The first value we need is our `MaxPredictionPing`. I mentioned in the previous section that we should put a limit on how far our projectile is forward-predicted, so it doesn't jump too far at high latencies. `MaxPredictionPing` will be the maximum ping with which we'll forward-predict our projectiles. If the client has a higher ping than this, then we'll _delay_ spawning our projectile, so it doesn't get fast-forwarded further than this value.
+The first value we need is our `MaxPredictionPing`. I mentioned in the [previous section](https://sreitich.github.io/projectile-prediction-1/#partial-fast-forwarding) that we should put a limit on how far our projectile is forward-predicted, so it doesn't jump too far at high latencies. `MaxPredictionPing` will be the maximum ping with which we'll forward-predict our projectiles. If the client has a higher ping than this, then we'll _delay_ spawning our projectile, so it doesn't get fast-forwarded further than this value.
 
-For example, if we set `MaxPredictionPing` to `100ms`, but our client has `150ms` of ping, we'll wait `50ms` before spawning either projectile, so the authoritative projectile only has to be fast-forwarded `100ms` to catch up to the fake one (assuming we're not doing partial fast-forwarding, detailed in the previous section). This is important for two reasons.
+For example, if we set `MaxPredictionPing` to `100ms`, but our client has `150ms` of ping, we'll wait `50ms` before spawning either projectile, so the authoritative projectile only has to be fast-forwarded `100ms` to catch up to the fake one (though since we're actually doing _partial_ fast-forwarding, detailed in the previous section, we wouldn't really fast-forward that far). This is important for two reasons.
 
 First, this keeps things fair for other players. We learned how partial fast-forwarding helps keep things fair for other players by preventing projectiles from teleporting a considerable distance ahead of where they should be. But since this distance is determinant on clients' ping, we could still end up forwarding projectiles extreme distances if clients have high enough ping. Setting this limit on the amount of ping with which we'll actually _allow_ clients to forward-predict mitigates this issue.
 
@@ -162,7 +165,7 @@ Second, this helps communicate latency to our player. If we're playing with `150
 
 On the topic of fast-forwarding, remember that we're only doing _partial_ forward-prediction, so we're only forwarding projectiles a portion of the distance to where the client "wants" them. In the previous section, I said we'd forward-predict them "about halfway."
 
-To make this more configurable, we'll actually make this a variable called `ClientBiasPct`, which will represent the amount, as a percentage, that we'll favor where the client wants the projectile, and where the server wants the projectile. Setting `ClientBiasPct` to `1.0` will have the effect of "full" fast-forwarding: placing the authoritative projectile exactly where the fake one is; setting it to `0.0` will disable fast-forwarding entirely, leaving the projectile where the server spawns it.
+To make this more configurable, we'll actually make this a variable called `ClientBiasPct`, which will represent the amount, as a percentage, that we'll favor where the client wants the projectile over where the server wants the projectile. Setting `ClientBiasPct` to `1.0` will have the effect of "full" fast-forwarding: placing the authoritative projectile exactly where the fake one is; setting it to `0.0` will disable fast-forwarding entirely, leaving the projectile where the server spawns it.
 
 ### Fudge Factor
 
@@ -268,7 +271,7 @@ public:
 
 private:
 
-    /** Internal counter for projectile IDs. Starts at 1 because 0 is reversed for non-predicted projectiles. */
+    /** Internal counter for projectile IDs. Starts at 1 because 0 is reserved for non-predicted projectiles. */
     uint32 FakeProjectileIdCounter;
 {% endhighlight %}
 
@@ -294,14 +297,14 @@ uint32 ACrashPlayerController::GenerateNewFakeProjectileId()
 }
 {% endhighlight %}
 
-We'll see later on that, although this isn't the _most_ efficient method for linking projectiles, giving each set of projectiles a unique identifier is extremely useful when debugging.
+This may not be the _most_ efficient method for linking projectiles, but giving each pair of projectiles a unique identifier happens to be extremely useful when debugging.
 {: .notice--info}
 
 Now that we have the configuration parameters and utilities we need, we can finally start spawning projectiles.
 
 ## Spawning the Fake Projectile
 
-In our `Activate` function, let's start by retrieving our player controller from the gameplay ability, since it has a lot of data we'll need.
+In our `Activate` function, let's start by retrieving our player controller from the gameplay ability.
 
 {% highlight c++ %}
 // AbilityTask_SpawnPredictedProjectile.cpp
@@ -341,7 +344,7 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
 
 We only need to spawn a fake projectile if we're a local client (i.e. `bIsNetAuthority` is false) and our `ForwardPredictionTime` is greater than `0.0` (i.e. our ping is greater than `0.0`, to account for LAN servers).
 
-To properly spawn our fake projectile, we need a struct of type `FActorSpawnParameters`. These parameters will be re-used a few times, so we can make some helper functions to construct them when needed, with the necessary parameters. (We'll skip the pre-spawn initialization code for now, and come back to it once we implement our ID code in `Projectile`).
+To properly spawn our fake projectile, we need a struct of type `FActorSpawnParameters`. These parameters will be re-used a few times, so we can make some helper functions to construct them when needed, with the necessary parameters. (We'll skip the pre-spawn initialization code for now, and come back to it in the next section, when we implement our ID code in `Projectile`).
 
 {% highlight c++ %}
 // AbilityTask_SpawnPredictedProjectile.h
@@ -392,10 +395,10 @@ FActorSpawnParameters UAbilityTask_SpawnPredictedProjectile::GenerateSpawnParams
 }
 {% endhighlight %}
 
-Note that we're making the `Instigator` our ASC's avatar (the player's pawn) and the `Owner` our ASC's owner (which is usually the player state). This will be important when we implement our `Projectile` class.
+No, `CustomPreSpawnInitalization` is not a mistake; it's a typo in Unreal's source code.
 {: .notice--info}
 
-No, `CustomPreSpawnInitalization` is not a mistake; it's a typo in Unreal's source code.
+Note that we're making the `Instigator` our ASC's avatar (the player's pawn) and the `Owner` our ASC's owner (which is usually the player state). Having access to these objects will be important for our `Projectile` code.
 {: .notice--info}
 
 Now, back in `Activate`, we can use these parameters to spawn our fake projectile, after generating a new ID for it. (For now, we're assuming that our ping is low-enough to forward-predict without delaying our spawn.)
@@ -416,7 +419,7 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
             
             if (!bIsNetAuthority && bShouldPredict)
             {
-				// If our ping is low enough to forward-predict, immediately spawn and initialize the fake projectile.
+                // If our ping is low enough to forward-predict, immediately spawn and initialize the fake projectile.
                 const uint32 FakeProjectileId = CrashPC->GenerateNewFakeProjectileId();
                 if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, GenerateSpawnParamsForFake(FakeProjectileId)))
                 {
@@ -641,9 +644,6 @@ void UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile()
         {
             PROJECTILE_LOG(Verbose, TEXT("(%i:%i.%i) (ID: %i): Successfully spawned fake projectile (%s) delayed. Attempting to forward-predict (%fms) with ping (%fms)."), FDateTime::UtcNow().GetMinute(), FDateTime::UtcNow().GetSecond(), FDateTime::UtcNow().GetMillisecond(), DelayedProjectileInfo.ProjectileId, *GetNameSafe(NewProjectile), DelayedProjectileInfo.CrashPC->GetForwardPredictionTime() * 1000.0f, DelayedProjectileInfo.CrashPC->PlayerState->ExactPing);
 
-            // Send the spawn information to the server so they can spawn the authoritative projectile.
-            SendSpawnDataToServer(DelayedProjectileInfo.SpawnLocation, DelayedProjectileInfo.SpawnRotation, DelayedProjectileInfo.ProjectileId);
-
             SpawnedFakeProj = NewProjectile;
 
             if (ShouldBroadcastAbilityTaskDelegates())
@@ -673,8 +673,11 @@ We haven't actually implemented the `Projectile` class yet, so if you want to te
     Video tag not supported.
 </video>
 <br>
-I don't have animations for these abilities, so I'm using an input debugger to indicate exactly when the input is pressed, to show that the projectile appears instantly for the player.
+
+I don't have animations for these abilities, so I'm using an input debugger to indicate exactly when the input is pressed, to show that the projectile appears instantly for the player when emulating low latency.
 {: .notice--info}
+
+And if you emulate network conditions with higher ping (greater than whatever you set `MaxPredictionPing` to), you should see a short delay before your fake projectile appears.
 
 ## Spawning the Authoritative Projectile
 
@@ -831,7 +834,7 @@ protected:
     void OnSpawnDataCancelled();
 {% endhighlight %}
 
-Back in the `Activate` function, the server activates their version of the task, instead of spawning the projectile (like we did on the client), we need to bind these callbacks.
+Back in the `Activate` function, when the server activates their version of the task, instead of spawning the projectile (like we did on the client), we need to bind these callbacks.
 
 {% highlight c++ %}
 // AbilityTask_SpawnPredictedProjectile.cpp
@@ -870,7 +873,28 @@ Now, the server should successfully receive the client's spawn data when the tas
 
 Once our data is replicated, we can use it to spawn the authoritative projectile. But first, we need to define a new function to _consume_ the data. This will prevent tasks from spawning multiple projectiles if we make multiple calls in a single ability script (for example, if we wanted to have a burst-projectile ability).
 
-This function will be called `TryConsumeClientReplicatedTargetData`, and we'll put it in our game's ability system component class. This function is the same as `UAbilitySystemComponent::ConsumeClientReplicatedTargetData`, but it also returns whether the data was actually consumed. This allows us to only proceed with spawning the projectile if the data hasn't _already_ been consumed. In other words, it prevents us from using a single target data multiple times, ensuring each target data generated by each instance of the task is used to spawn exactly one projectile.
+This function will be called `TryConsumeClientReplicatedTargetData`, and we'll put it in our game's ability system component class. This function is the same as `UAbilitySystemComponent::ConsumeClientReplicatedTargetData`, but it also returns whether the data was actually consumed. This allows us to only proceed with spawning the projectile if the data hasn't _already_ been consumed. In other words, it prevents us from using a single target data multiple times, ensuring each target data generated by each instance of the task is only used to spawn exactly one projectile.
+
+This is something we have to account for just because of how target data replication, specifically, is programmed, so don't worry if you don't understand this on a technical level. If you _do_ want a more technical explanation:
+<br>
+<br>
+When we "send" target data to the server, we're not actually sending it, like we would with an RPC. We're instead adding it to an `FGameplayAbilityReplicatedDataContainer`, which is basically a replicated map that holds runtime ability data (which helps prevent data races, which is why we don't have to worry about waiting for the server before sending our target data).
+<br>
+<br>
+On the server, the listener we set up tell us when this container changes; i.e. when the client adds some new piece of data to it, which gets replicated to us. If the new data has a matching ability spec and prediction key (meaning it was sent by the same ability that our task is in), the listener will fire a callback function with the new data.
+<br>
+<br>
+But say we call this task twice in quick succession (such as a "burst-fire" ability). Both tasks will begin listening for the data container to update, but once it does, it will trigger _both_ tasks' listeners, since these tasks use the same ability spec _and_ the same prediction key, because they were both executed in the same ability. As a result, the first task would execute successfully, but then the second task would re-use the first task's data, instead of waiting for _its_ respective data.
+<br>
+<br>
+We can solve this by making the first task "consume" the data, in order to prevent any other tasks from re-using it, by calling `ConsumeClientReplicatedTargetData`. This function searches the replicated data container for any data with a matching ability spec and prediction key and removes it.
+<br>
+<br>
+Unfortunately, this function doesn't actually solve our problem, because it doesn't tell us if anything was _actually_ removed. Since the replicated data gets copied for each invocation, both instances of our task will still trigger their respective callbacks with the same data.
+<br>
+<br>
+So, to solve this, we create a new function called `TryConsumeClientReplicatedTargetData`, which does the same thing as `ConsumeClientReplicatedTargetData`, but also returns whether any data was actually removed. This way, when our first task triggers the callback, it will successfully remove the data and continue. But when the _second_ task triggers its callback, it will try to remove the same data and _fail_. When this happens, we can exit out of the callback function early, and keep listening for _our_ data to get replicated, which we'll be able to successfully consume.
+{: .notice--info}
 
 {% highlight c++ %}
 // CrashAbilitySystemComponent.h
@@ -966,7 +990,7 @@ void UAbilityTask_SpawnPredictedProjectile::OnSpawnDataReplicated(const FGamepla
 }
 {% endhighlight %}
 
-You can see that this is also where we fast-forward the projectile. We don't have a reference to our projectile's movement component, since we haven't created it yet, so you'll have an error for now. If you want to test this code before implementing the projectile class, you can just comment this part out without issue.
+You can see that this is also where we fast-forward the projectile. We don't have a reference to our projectile's movement component, since we haven't created it yet, so you'll have an error for now. If you want to test this code before implementing the projectile class, you can just comment this part out.
 {: .notice--info}
 
 If our data _fails_ to replicate (because the ability was cancelled or rejected), we need to cancel the server's version of the task.
@@ -987,7 +1011,7 @@ void UAbilityTask_SpawnPredictedProjectile::OnSpawnDataCancelled()
 
 `OnSpawnDataCancelled` accounts for situations where our data doesn't get replicated, but we've also handled another fail-case at the end of `OnSpawnDataReplicated`: if the server fails to spawn the projectile, we're canceling the task and executing the `FailedToSpawn` output pin. Together, these account for possible failures on the server side. But we also need to handle failures on the client side.
 
-When a _client_ fails to spawn their projectile, or when their task is rejected (since any rejection on the server will get replicated to clients), we need to do the same thing: cancel the task and execute `FailedToSpawn`. But we _also_ need to make sure we cancel our target data replication, so the server doesn't try to spawn the authoritative projectile.
+When a client fails to spawn their projectile, or when their task is rejected (since any rejection on the server will get replicated to clients), we need to do the same thing: cancel the task and execute `FailedToSpawn`. But we _also_ need to make sure we cancel our target data replication, so the server doesn't try to spawn the authoritative projectile.
 
 Let's make a helper function to cancel our target data:
 
@@ -1051,7 +1075,7 @@ void UAbilityTask_SpawnPredictedProjectile::SpawnDelayedFakeProjectile()
 
 Now, if either the client _or_ server fail to spawn their projectile, the entire task will be canceled, and `FailedToSpawn` will be triggered in both the client _and_ the server's ability. This lets us reliably handle these failures in our ability script (usually just canceling the ability), with the guarantee that `FailedToSpawn` will always be executed on both versions of the ability.
 
-The last possible failure situation we need to handle is if our task is rejected externally (usually because the ability was rejected on the server). When this happens, we need to destroy our fake projectile, and remove it from our player controller's list of unlinked fake projectiles. Let's create one more callback function to handle that.
+The last possible failure situation we need to handle is if our client's task is rejected (usually because the ability was rejected on the server). When this happens, we need to destroy our fake projectile, and remove it from our player controller's list of unlinked fake projectiles. Let's create one more callback function to handle that.
 
 {% highlight c++ %}
 // AbilityTask_SpawnPredictedProjectile.h
@@ -1094,7 +1118,7 @@ void UAbilityTask_SpawnPredictedProjectile::OnTaskRejected()
 }
 {% endhighlight %}
 
-Finally, we can just bind this function to GAS's built-in prediction system.
+Finally, we can just bind this function to GAS's built-in prediction system, at the start of `Activate`.
 
 {% highlight c++ %}
 void UAbilityTask_SpawnPredictedProjectile::Activate()
