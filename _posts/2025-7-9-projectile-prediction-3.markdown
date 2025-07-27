@@ -5,7 +5,7 @@ excerpt: Linking fake and authoritative projectile actors.
 header:
     teaser: /assets/images/per-post/projectile-prediction-3/projectile-prediction-3-teaser.png
 author: Meta
-last_modified_at: 2025-07-25
+last_modified_at: 2025-07-27
 ---
 
 Part 3 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through initializing the base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
@@ -18,7 +18,7 @@ This code was written for a game called [_Cloud Crashers_](https://store.steampo
 
 ## Introduction
 
-In the previous section, we implemented an ability task to predictively spawn projectile actors. In this section, we'll finish initializing and linking our projectiles together, which we left unfinished in the last section.
+In the previous section, we implemented an ability task to predictively spawn projectile actors. In this section, we'll finish initializing and linking our projectiles together, which we left unfinished.
 
 This is the last coding walkthrough in this series because, once the projectiles have been initialized and linked, you can implement the class itself however you want, in whichever way best suits your project.
 
@@ -114,7 +114,7 @@ protected:
 
 When we initialize a projectile as the fake one, we'll add it to the player controller's list of unlinked fake projectiles for the authoritative projectile to link to once it's been spawned. (We don't need to worry about replication, since the fake projectile only exists locally, so we only need to link it locally.)
 
-To link the two projectiles (which we'll do in the authoritative projectile's `BeginPlay`), we just have each actor cache a reference to the other.
+To link the two projectiles (which we'll do in the authoritative projectile's `BeginPlay`), we'll just have each actor cache a reference to the other.
 
 {% highlight c++ %}
 // Projectile.cpp
@@ -140,7 +140,7 @@ void AProjectile::LinkFakeProjectile(AProjectile* InFakeProjectile)
 }
 {% endhighlight %}
 
-Finally, we'll link the projectiles together in `BeginPlay`. Since the authoritative projectile has to be spawned by and replicated from the server, we know it will _always_ be spawned _after_ the fake projectile. Since we need both projectiles to link them, we wait until the authoritative projectile is replicated to the local client, and calls `BeginPlay` to try to link them, since we know that this is the earliest point at which both projectiles will exist.
+Finally, we'll link the projectiles together in `BeginPlay`. Since the authoritative projectile has to be spawned by and replicated from the server, we know it will _always_ be spawned _after_ the fake projectile. That means that the earliest point at which both projectiles will exist (since we need both to link them together) will be the authoritative projectile's `BeginPlay`, which is called as soon as the authoritative projectile is replicated back to the local client.
 
 {% highlight c++ %}
 // Projectile.h
@@ -178,7 +178,10 @@ void AProjectile::BeginPlay()
 }
 {% endhighlight %}
 
-Since we're going to call `InitFakeProjectile` during construction, `ProjectileId` will always be set before `BeginPlay`. And because we've set it to only replicate to the owning machine, we can easily identify whether we're the authoritative projectile on the owning client (that's what I mean when I say the "owning client's version" of the authoritative projectile): if we have authority, that means we're either the fake projectile (since we spawned it locally) or the authoritative projectile on the _server_; if we _don't_ have a projectile ID, that means we're the authoritative projectile on a _non-owning_ client (if we were on the owning client, the ID would have been replicated to us).
+Since we're going to call `InitFakeProjectile` during construction, `ProjectileId` will always be set before `BeginPlay`. And because we've set it to only replicate to the owning machine (with `COND_OwnerOnly`), we can easily identify whether we're the authoritative projectile on the owning client: if we have a projectile ID, that means we're either the fake projectile on the owning client (the only place it exists), the authoritative projectile on the server, or the authoritative projectile on the _owning_ client (again, the only place `ProjectileId` is replicated to); and if we have _authority_, we're either the fake projectile (since it's spawned locally) or the authoritative projectile on the server. Therefore, if we _do_ have a projectile ID and _don't_ have authority, we must be the authoritative projectile on the owning client.
+<br>
+<br>
+In case it's not clear, the reason we only want to link our projectiles on the owning client is because that's the only place where the fake projectile is. The whole point of the fake projectile is to make _their_ game feel responsive. Everyone else (including the server) just sees the authoritative projectile.
 {: .notice--info}
 
 Now that our linking is set up, we just need to call `InitProjectileId` and `InitFakeProjectile`. To do that, we're going to go back to our `SpawnPredictedProjectile` task class to fill in some missing code.
