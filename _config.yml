@@ -119,9 +119,9 @@ author:
   location         : "Los Angeles, CA"
   email            :
   links:
-#    - label: "Personal Website"
-#      icon: "fa fa-fw fa-user"
-#      url: "https://samreitich.com"
+    - label: "Personal Website"
+      icon: "fa fa-fw fa-user"
+      url: "https://samreitich.com"
     - label: "LinkedIn"
       icon: "fab fa-fw fa-linkedin"
       url: "https://www.linkedin.com/in/samreitich/"
@@ -132,9 +132,9 @@ author:
 # Site Footer
 footer:
   links:
-#    - label: "Personal Website"
-#      icon: "fa fa-fw fa-user"
-#      url: "https://samreitich.com"
+    - label: "Personal Website"
+      icon: "fa fa-fw fa-user"
+      url: "https://samreitich.com"
     - label: "LinkedIn"
       icon: "fab fa-fw fa-linkedin"
       url: "https://www.linkedin.com/in/samreitich/"
