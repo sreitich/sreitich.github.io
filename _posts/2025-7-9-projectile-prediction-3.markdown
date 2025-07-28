@@ -10,7 +10,7 @@ last_modified_at: 2025-07-27
 
 Part 3 of a series exploring and implementing projectile prediction for multiplayer games. This part walks through initializing the base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
 
-The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). This section is a step-by-step walkthrough to finishing the `UAbilityTask_SpawnPredictedProjectile` class. If you don't want a detailed walkthrough, you can copy the code directly.
+The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66/projectile-prediction-in-unreal-engine). This section is a step-by-step walkthrough to finishing the `UAbilityTask_SpawnPredictedProjectile` class. If you don't want a detailed walkthrough, you can copy the code directly.
 {: .notice--info}
 
 This code was written for a game called [_Cloud Crashers_](https://store.steampowered.com/app/2995940/Cloud_Crashers/), and uses project-specific classes named as such. For your game, you'll need to replace the `ACrashPlayerController` class with your game's player controller class.

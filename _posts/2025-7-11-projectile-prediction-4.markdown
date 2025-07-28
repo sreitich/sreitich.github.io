@@ -10,7 +10,7 @@ last_modified_at: 2025-07-27
 
 The fourth and final section of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the implementation of a base `Projectile` actor class, which can be subclassed into projectiles that can be spawned by our `SpawnPredictedProjectile` task.
 
-The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66). Additionally, a more concise explanation of this code can be found at the [official documentation page](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
+The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66/projectile-prediction-in-unreal-engine). Additionally, a more concise explanation of this code can be found at the [official documentation page](https://docs.google.com/document/d/1VBhB41mwQWksoPLgx-G8YSelnWQ7_FYu4-QGueqY2lY/edit?usp=sharing).
 {: .notice--info}
 
 ## Introduction

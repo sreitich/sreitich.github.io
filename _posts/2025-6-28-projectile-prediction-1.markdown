@@ -10,7 +10,7 @@ last_modified_at: 2025-07-26
 
 Part 1 of a series exploring and implementing projectile prediction for multiplayer games. This part breaks down the theory behind projectile prediction, some approaches to implementing it, and a short overview of the version we'll be implementing, starting in part 2, using Unreal Engine and (optionally) the Gameplay Ability System.
 
-The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66).
+The code used for this series can be found on [Unreal Engine's Learning site](https://dev.epicgames.com/community/learning/tutorials/LZ66/projectile-prediction-in-unreal-engine).
 {: .notice--info}
 
 ## Introduction
