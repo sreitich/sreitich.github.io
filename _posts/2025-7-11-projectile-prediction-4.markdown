@@ -204,7 +204,8 @@ It's up to the discretion of designers whether a projectile should predict its F
    <source src="/assets/videos/per-post/projectile-prediction-4/predicting-fx.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
+
 
 Regardless of `bPredictFX`, we never predict gameplay effects. And since we use a gameplay cue tied to the `ImpactGameplayEffect` for "direct impact" FX, this means these FX are never predicted. This is intentional, since we want our damage (which we also don't predict), hitmarker, FX, and reaction animations to be synced together, and because hit-impact missed predictions are really irritating for players. From what I've seen, this is a fairly conventional approach in games: predicting FX except for ones that indicate damage (blood splatters, star particles, etc.).
 {: .notice--info}
@@ -223,7 +224,8 @@ Since we're simulating our projectile's movement locally (as opposed to replicat
    <source src="/assets/videos/per-post/projectile-prediction-4/missed-premature.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
+
 
 On the client (right), playing with `200ms` of ping, the fake projectile hits the enemy and detonates. But on the server (left), it misses and continues traveling. Because `bPredictFX` is disabled (we typically wouldn't predict FX for a rocket projectile), we don't even see an explosion from the fake projectile, since it's waiting for the authoritative projectile's detonation; it just disappears. If `bPredictFX` were enabled, we'd see an explosion where the fake projectile (mistakenly) detonated.
 {: .notice--info}
@@ -249,7 +251,8 @@ For the same reason as the previous case, it's possible for the _authoritative_ 
    <source src="/assets/videos/per-post/projectile-prediction-4/missed-late.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
+
 
 This time, the fake projectile _misses_ the enemy and keeps traveling, but the authoritative projectile hits the enemy and detonates (which we see, since `bPredictFX` is disabled, meaning we use the authoritative projectile's FX).
 {: .notice--info}
@@ -262,7 +265,8 @@ To reconcile this case, we do the same thing as before: destroy the fake project
    <source src="/assets/videos/per-post/projectile-prediction-4/missed-late.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
+
 
 Now, we destroy the fake projectile when the real one detonates, so it doesn't keep traveling. (The red sphere shows where it was when it was destroyed.)
 {: .notice--info}
@@ -285,7 +289,8 @@ For example, if the authoritative projectile missed the fake projectile's target
    <source src="/assets/videos/per-post/projectile-prediction-4/missed-inaccurate.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
+
 
 For this example, we're using a projectile with `bPredictFX` enabled, since this is issue _really_ hard to notice when FX aren't predicted.
 <br>
@@ -299,7 +304,8 @@ To account for this, once the authoritative projectile detonates, if the fake pr
    <source src="/assets/videos/per-post/projectile-prediction-4/reconciliation-inaccurate.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
+
 
 This time, since we're predicting the fake projectile's FX, we end up playing our FX twice: once when the fake projectile mistakenly detonates, and once when the authoritative projectile performs the correct detonation. But, again, this is so rare that we're okay with it; we just want to make sure the player sees what their projectile _really_ hit.
 {: .notice--info}
@@ -340,7 +346,8 @@ Due to the time it takes to replicate from the server and because of fast-forwar
    <source src="/assets/videos/per-post/projectile-prediction-4/without-rewinding.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
+
 
 We saw this discrepancy earlier when [looking at debugging options](#debugging).
 {: .notice--info}
@@ -392,7 +399,7 @@ Well, with _all_ of those components broken down, that brings this section—and
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/h0VqCNtnb04?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=h0VqCNtnb04" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 <br>
-When I went to implement projectile prediction for my game, I had an impossible time finding any remotely relevant resources on the topic. This solution came from looking at open-source projects (like [Unreal Tournament](https://github.com/JimmieKJ/unrealTournament/tree/clean-master)), using network limiters to reverse-engineer various games, scrubbing through netcode GDC talks for _any_ mention of projectiles, and—more than anything else—a lot of trial-and-error.
+When I went to implement projectile prediction for my game, I had an impossible time finding any remotely relevant resources on the topic. This solution came from looking at open-source projects (like [_Unreal Tournament_](https://github.com/JimmieKJ/unrealTournament/tree/clean-master)), using network limiters to reverse-engineer various games, scrubbing through netcode GDC talks for _any_ mention of projectiles, and—more than anything else—a lot of trial-and-error.
 
 I went through the effort of writing this lengthy series just because I wanted to put _some_ kind of resource out there to help those trying to implement projectile prediction, since it's such a common feature.
 

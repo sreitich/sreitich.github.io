@@ -672,7 +672,8 @@ We haven't actually implemented the `Projectile` class yet, so if you want to te
    <source src="/assets/videos/per-post/projectile-prediction-2/spawning-fake-projectile.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-<br>
+
+
 
 I don't have animations for these abilities, so I'm using an input debugger to indicate exactly when the input is pressed, to show that the projectile appears instantly for the player when emulating low latency.
 {: .notice--info}
