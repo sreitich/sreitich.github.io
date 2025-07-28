@@ -262,7 +262,7 @@ To detect this, when the authoritative projectile detonates, we simply check whe
 To reconcile this case, we do the same thing as before: destroy the fake projectile and switch to the real one:
 
 <video width="100%" height="100%" muted autoplay loop>
-   <source src="/assets/videos/per-post/projectile-prediction-4/missed-late.mp4" type="video/mp4">
+   <source src="/assets/videos/per-post/projectile-prediction-4/reconciliation-late.mp4" type="video/mp4">
     Video tag not supported.
 </video>
 
