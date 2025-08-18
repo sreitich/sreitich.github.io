@@ -334,7 +334,6 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
         if (ACrashPlayerController* CrashPC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<ACrashPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
         {
             const float ForwardPredictionTime = CrashPC->GetForwardPredictionTime();
-            const bool bShouldPredict = (ForwardPredictionTime > 0.0f);
             const bool bIsNetAuthority = Ability->GetCurrentActorInfo()->IsNetAuthority();
             const bool bShouldUseServerInfo = IsLocallyControlled();
         }
@@ -342,7 +341,7 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
 }
 {% endhighlight %}
 
-We only need to spawn a fake projectile if we're a local client (i.e. `bIsNetAuthority` is false) and our `ForwardPredictionTime` is greater than `0.0` (i.e. our ping is greater than `0.0`, to account for LAN servers).
+We only need to spawn a fake projectile if we're a local client (i.e. `bIsNetAuthority` is false).
 
 To properly spawn our fake projectile, we need a struct of type `FActorSpawnParameters`. These parameters will be re-used a few times, so we can make some helper functions to construct them when needed, with the necessary parameters. (We'll skip the pre-spawn initialization code for now, and come back to it in the next section, when we implement our ID code in `Projectile`).
 
@@ -413,13 +412,12 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
         if (ACrashPlayerController* CrashPC = Ability->GetCurrentActorInfo()->PlayerController.IsValid() ? Cast<ACrashPlayerController>(Ability->GetCurrentActorInfo()->PlayerController.Get()) : nullptr)
         {
             const float ForwardPredictionTime = CrashPC->GetForwardPredictionTime();
-            const bool bShouldPredict = (ForwardPredictionTime > 0.0f);
             const bool bIsNetAuthority = Ability->GetCurrentActorInfo()->IsNetAuthority();
             const bool bShouldUseServerInfo = IsLocallyControlled();
             
-            if (!bIsNetAuthority && bShouldPredict)
+            if (!bIsNetAuthority)
             {
-                // If our ping is low enough to forward-predict, immediately spawn and initialize the fake projectile.
+                // If our ping is low enough to forward-predict (or we're on LAN), immediately spawn and initialize the fake projectile.
                 const uint32 FakeProjectileId = CrashPC->GenerateNewFakeProjectileId();
                 if (AProjectile* NewProjectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, GenerateSpawnParamsForFake(FakeProjectileId)))
                 {
@@ -604,7 +602,7 @@ Now, in our `Activate` function, before we try spawning the fake projectile, che
 
             // ...
 
-            if (!bIsNetAuthority && bShouldPredict)
+            if (!bIsNetAuthority)
             {
                 /* On clients, if our ping is too high to forward-predict, delay spawning the projectile so we don't
                  * forward-predict further than MaxPredictionPing. */
@@ -627,7 +625,7 @@ Now, in our `Activate` function, before we try spawning the fake projectile, che
                     return;
                 }
                 
-                // If our ping is low enough to forward-predict, immediately spawn and initialize the fake projectile.
+                // If our ping is low enough to forward-predict (or we're on LAN), immediately spawn and initialize the fake projectile.
                 const uint32 FakeProjectileId = CrashPC->GenerateNewFakeProjectileId();
     
                 // ...
@@ -862,7 +860,7 @@ Back in the `Activate` function, when the server activates their version of the 
                 return;
             }
             
-            if (!bIsNetAuthority && bShouldPredict)
+            if (!bIsNetAuthority)
 
             // ...
 }
@@ -1144,7 +1142,7 @@ void UAbilityTask_SpawnPredictedProjectile::Activate()
 {
             // ...
 
-            if (!bIsNetAuthority && bShouldPredict)
+            if (!bIsNetAuthority)
             {
                 // ...
             }
