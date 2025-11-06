@@ -33,7 +33,7 @@ In this article, I'll show how to implement a flexible first-person animation sy
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/uQJQGGqoaSw?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=uQJQGGqoaSw" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 
-In _Cloud Crashers_, we actually uses two animation instance classes: a base class and a first-person subclass. This is because _Cloud Crashers_ also supports third-person, and the third-person class re-uses a lot of the data in the base animation instance class. For the sake of simplicity, in this tutorial, I've rewritten the base class and first-person class into one class.
+In _Cloud Crashers_, we actually use two animation instance classes: a base class and a first-person subclass. This is because _Cloud Crashers_ also supports third-person, and the third-person class re-uses a lot of the data in the base animation instance class. For the sake of simplicity, in this tutorial, I've rewritten the base class and first-person class into one class.
 {: .notice--info}
 
 ## Base Pose
