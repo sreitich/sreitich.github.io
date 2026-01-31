@@ -9,7 +9,7 @@ Howdy! I'm Sam. You'll usually see me online as "Samathan."
 
 
 
-I'm a game programmer at 2K Games, specializing in gameplay programming and core tech. Most of my work is in Unreal Engine, which I've been using for almost a decade.
+I'm a game programmer at 2K Games. Most of my work is in Unreal Engine, which I've been using for almost a decade.
 
 
 
