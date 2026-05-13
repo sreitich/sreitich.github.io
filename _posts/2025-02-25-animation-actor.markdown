@@ -543,14 +543,14 @@ In _Cloud Crashers_, we use this notify **everywhere**, for both first- and thir
    <source src="/assets/videos/per-post/anim-actors/anim-actors-demo-warhammer-tpp.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 ... for reloads...
 
 <video width="100%" height="100%" muted autoplay loop>
    <source src="/assets/videos/per-post/anim-actors/anim-actors-demo-reload.mp4" type="video/mp4">
     Video tag not supported.
 </video>
-
+<br>
 ... and for making animations that spawn *real* actors (especially projectiles) feel smoother, by showing a fake actor during the animation and spawning the real one once it leaves the character's hand.
 
 <video width="100%" height="100%" muted autoplay loop>
