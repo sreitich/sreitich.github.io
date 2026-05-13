@@ -571,7 +571,7 @@ To do this, we can implement the `CanEditChange` function which is used by the e
 
 public:
 
-    // Hides animation properties if the selected mesh is not a skeletal mesh.
+    // Disables animation properties if the selected mesh is not a skeletal mesh.
     virtual bool CanEditChange(const FProperty* InProperty) const override;
 
 #endif // WITH_EDITOR
