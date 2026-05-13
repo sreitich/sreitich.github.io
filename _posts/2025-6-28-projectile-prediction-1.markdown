@@ -29,7 +29,7 @@ For disambiguation, the term "projectile prediction" can also refer to the indic
 
 In this series, we'll examine the theory behind projectile prediction, and walk through a configurable implementation of projectile prediction that mitigates latency and improves responsiveness, without sacrificing fairness:
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/x0ld1QDUcqY?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=x0ld1QDUcqY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/MtSpShP35SU?autoplay=1&color=white&controls=0&modestbranding=1&mute=1&rel=0&loop=1&playlist=MtSpShP35SU" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"  style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></iframe>
 <br>
 In this section, we're looking at some approaches to implementing projectile prediction. In parts 2 and 3, we'll walk through creating a [Gameplay Ability System](https://dev.epicgames.com/documentation/en-us/unreal-engine/gameplay-ability-system-for-unreal-engine) [ability task](https://dev.epicgames.com/documentation/en-us/unreal-engine/gameplay-ability-tasks-in-unreal-engine) to predictively spawn projectiles. And in part 4, we'll look at an implementation of a base projectile actor class, breaking down its features and reconciliation techniques (since a step-by-step coding walkthrough wouldn't be practical, given the length of the code for that class).
 
